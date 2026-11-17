@@ -1,0 +1,72 @@
+PRISMA 0.3 — REPRODUCTOR Y REVISOR DE VÍDEO
+
+Abre Prisma.exe. Mantén libmpv-2.dll en la misma carpeta.
+Windows 10/11 de 64 bits, con .NET Framework 4.8.
+La carpeta completa es portátil. No necesita instalar paquetes de códecs.
+
+REPRODUCCIÓN
+Arrastra un vídeo a la ventana o usa Abrir vídeo. Puedes elegir varios archivos.
+Prisma recuerda tamaño, posición y volumen, y mantiene el último fotograma al terminar.
+H.264, H.265/HEVC y ProRes estándar se decodifican con libmpv/FFmpeg.
+ProRes RAW no está incluido. El soporte de un códec no garantiza tiempo real en cualquier resolución.
+Ver > Aceleración por hardware permite volver a CPU si un controlador da problemas.
+Ver > Color y HDR permite adaptación automática o convertir HDR a SDR.
+La información de 10/12 bits corresponde al vídeo, no certifica la señal de la pantalla.
+La salida física depende de la configuración de Windows, GPU, cable y monitor.
+
+CONTROLES DE REVISIÓN
+← / →           Fotograma anterior / siguiente; se queda en pausa.
+J / K / L       Retroceder / pausar / avanzar.
+J o L repetidos  1×, 2×, 4×, 8×, 16×. La tecla contraria reduce la velocidad y luego cambia el sentido.
+Mayús+J / L     Retroceder / avanzar a 0,5×.
+Mayús+← / →     Saltar 5 segundos.
+Espacio         Reproducir / pausar.
+I               Mostrar / ocultar resumen sobre el vídeo.
+Ctrl+I          Ventana completa de información.
+M               Crear nota en el fotograma actual.
+Ctrl+M          Mostrar / ocultar el panel de notas.
+Ctrl+Intro      Guardar la nota mientras se escribe. Esc cancela su edición.
+Ctrl+O          Abrir vídeos. Ctrl+Mayús+O añade archivos a la lista.
+Ctrl+L          Lista de reproducción.
+↑ / ↓           Subir / bajar volumen. Ctrl+Mayús+M silencia.
+F o F11         Pantalla completa. Esc vuelve a la ventana.
+
+El retroceso continuo usa búsquedas exactas sin audio, para no almacenar grupos completos de fotogramas 4K en memoria.
+Puede verse a saltos, especialmente con H.264/H.265 exigentes. No equivale a una caché de edición de un NLE.
+
+NOTAS Y MARCADORES
+Pulsa M o Nueva nota, escribe título y comentario, y pulsa Guardar nota o Ctrl+Intro.
+Cada tarjeta muestra su código de tiempo, título y comentario. Selecciona una tarjeta y pulsa Editar.
+El editor ocupa todo el panel; en ventanas pequeñas puedes desplazarte para ver todos los campos.
+Las notas se guardan automáticamente en datos/marcadores, separadas por ruta del vídeo.
+Se muestran como pequeñas marcas amarillas sobre la barra de reproducción.
+Doble clic en una nota salta a su fotograma. Usa Editar o el menú con botón derecho para cambiarla o eliminarla.
+Conserva la carpeta datos al mover la aplicación. Si cambias la ruta del vídeo, importa una copia de sus notas.
+
+EXPORTAR A DAVINCI RESOLVE O PREMIERE
+1. Abre Notas > Exportar y elige «DaVinci / Premiere · XML con vídeo y marcadores».
+2. Guarda el XML junto al vídeo que vas a compartir.
+3. En DaVinci Resolve: Archivo > Importar > Línea de tiempo, y selecciona el XML.
+4. En Premiere: Archivo > Importar, y selecciona el XML.
+5. Se crea una secuencia enlazada al vídeo, con sus pistas de audio y marcadores de revisión.
+   Si cambias de equipo o mueves el vídeo, el editor puede pedirte localizar el archivo.
+
+El XML es Final Cut Pro 7 (xmeml versión 5), no FCPXML. Se ha comprobado su importación en DaVinci Resolve 21.1.2 con audio y tres marcadores en los fotogramas 0, 12 y 47.
+La importación interactiva en Premiere queda pendiente de verificar.
+El XML referencia el vídeo; no lo incluye, no lo recodifica y no escribe metadatos en él.
+Importa el XML para recuperar las notas. Importar únicamente el vídeo no lee este archivo automáticamente.
+Los marcadores son de secuencia y sus tiempos se cuentan desde el primer fotograma del render, con inicio 00:00:00:00.
+Se conserva la tasa racional de fotogramas (por ejemplo 24000/1001). El código de tiempo mostrado es NDF.
+La correspondencia por fotogramas presupone un render de FPS constantes. Para material VFR, conviene generar un render CFR de revisión.
+
+OTROS FORMATOS E IMPORTACIÓN
+JSON de Prisma: conserva todas las notas y sirve para compartirlas y volverlas a abrir en Prisma.
+CSV: documento de lectura con fotograma, código de tiempo, FPS, título y nota.
+Importar admite JSON de Prisma y XML de Final Cut Pro 7 que contenga marcadores.
+Se añaden las notas sin duplicar la misma posición, título y texto, y se exige que coincidan los FPS.
+Algunas exportaciones XML de los editores omiten marcadores. En la prueba, Resolve importó las notas pero su exportación FCP 7 XML no las devolvió.
+Por tanto, conserva el JSON de Prisma para un intercambio completo de ida y vuelta; no se promete recuperar notas ausentes de un XML.
+
+LICENCIAS Y CÓDIGO
+Código abierto GPL-3.0-o-posterior. Licencias y procedencia del motor en licencias/.
+El código del proyecto, build.ps1 y las pruebas se encuentran en la carpeta superior.
