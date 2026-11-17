@@ -1,4 +1,4 @@
-PRISMA 0.3 — REPRODUCTOR Y REVISOR DE VÍDEO
+PRISMA 0.3.1 — REPRODUCTOR Y REVISOR DE VÍDEO
 
 Abre Prisma.exe. Mantén libmpv-2.dll en la misma carpeta.
 Windows 10/11 de 64 bits, con .NET Framework 4.8.
@@ -66,6 +66,19 @@ Importar admite JSON de Prisma y XML de Final Cut Pro 7 que contenga marcadores.
 Se añaden las notas sin duplicar la misma posición, título y texto, y se exige que coincidan los FPS.
 Algunas exportaciones XML de los editores omiten marcadores. En la prueba, Resolve importó las notas pero su exportación FCP 7 XML no las devolvió.
 Por tanto, conserva el JSON de Prisma para un intercambio completo de ida y vuelta; no se promete recuperar notas ausentes de un XML.
+
+PRIVACIDAD Y SEGURIDAD
+Prisma no se conecta a internet ni envía datos de uso.
+Solo abre los archivos que eliges o arrastras. No sigue listas M3U, montajes EDL, manifiestos HLS
+ni direcciones web incluidas dentro de otros archivos, aunque alguien te envíe uno preparado.
+La carpeta datos guarda preferencias, archivos recientes y notas, con las rutas de tus vídeos.
+Si compartes la carpeta de Prisma, quita antes la carpeta datos.
+Para vaciar la lista: Archivo > Archivos recientes > Borrar lista de recientes.
+Al exportar notas, el JSON solo guarda el nombre del vídeo. El XML para DaVinci o Premiere guarda
+la ruta completa para enlazar el vídeo, y esa ruta puede mostrar tu usuario de Windows.
+Revisa el XML antes de enviarlo a otras personas.
+En el CSV, las notas que empiezan por =, +, - o @ llevan un apóstrofo para que Excel no las ejecute.
+Guarda Prisma en una carpeta propia (por ejemplo, Documentos\Prisma), no en Descargas.
 
 LICENCIAS Y CÓDIGO
 Código abierto GPL-3.0-o-posterior. Licencias y procedencia del motor en licencias/.
