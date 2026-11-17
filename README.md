@@ -8,6 +8,12 @@ La versión 0.3 renueva la interfaz oscura: controles vectoriales, tarjetas de r
 
 La versión 0.3.1 añade protecciones de seguridad y privacidad sin cambiar el uso diario. Consulta [Seguridad y privacidad](#seguridad-y-privacidad).
 
+## Descargar
+
+En [Releases](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest) hay un .zip listo para usar en Windows 10 u 11 de 64 bits. Descomprímelo en una carpeta propia, por ejemplo `Documentos\Prisma`, y abre `Prisma.exe`. Antes de abrirlo, puedes comprobar que el .zip es el publicado: en PowerShell, `Get-FileHash .\Prisma-*.zip` debe dar la huella SHA-256 que aparece en la versión.
+
+Prisma no está firmado digitalmente, así que Windows SmartScreen puede avisar la primera vez. Pulsa «Más información» y «Ejecutar de todas formas» solo si la huella coincide.
+
 ## Compilar y ejecutar
 
 En Windows 10 u 11 de 64 bits con .NET Framework 4.8, descarga o clona el repositorio y ejecuta estos comandos desde su carpeta:
