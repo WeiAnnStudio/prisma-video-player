@@ -24,6 +24,7 @@ internal static class ReviewTests
     {
         try
         {
+            Hardening.Apply();
             string root = args[0], output = Path.Combine(root, "tests", "exports"); Directory.CreateDirectory(output);
             ReviewDocument doc = new ReviewDocument { MediaPath = Path.Combine(root, "tests", "media", "prores-422-10bit.mov"), DurationFrames = 48, Width = 640, Height = 360, AudioChannels = 1 };
             doc.SetFps(24);
@@ -43,6 +44,15 @@ internal static class ReviewTests
             Check(doc.Timecode(24000) == "00:16:40:00", "Código de tiempo NDF usa base nominal de 24");
             string hostile = Path.Combine(output, "invalid.xml"); File.WriteAllText(hostile, "<!DOCTYPE xmeml [<!ENTITY data SYSTEM 'file:///C:/Windows/win.ini'>]><xmeml>&data;</xmeml>");
             bool rejected = false; try { ReviewDocument.ImportXml(hostile); } catch { rejected = true; } Check(rejected, "No se resuelven entidades externas de XML");
+            ReviewDocument risky = new ReviewDocument { MediaPath = doc.MediaPath, DurationFrames = 48 }; risky.SetFps(24);
+            risky.Markers.Add(new ReviewMarker { Frame = 1, Name = "=HYPERLINK(\"http://ejemplo.invalid\",\"clic\")", Note = "@SUM(1+1)" });
+            risky.Markers.Add(new ReviewMarker { Frame = 2, Name = "-2 pasos", Note = "+cmd|' /C calc'!A0" });
+            string riskyCsv = Path.Combine(output, "formulas.csv"); risky.ExportCsv(riskyCsv); string riskyText = File.ReadAllText(riskyCsv);
+            Check(riskyText.Contains("\"'=HYPERLINK(") && riskyText.Contains("\"'@SUM(1+1)\"") && riskyText.Contains("\"'-2 pasos\"") && riskyText.Contains("\"'+cmd"), "CSV neutraliza fórmulas en las notas");
+            string sharedJson = Path.Combine(output, "compartir.json"); risky.SaveForSharing(sharedJson); ReviewDocument shared = ReviewDocument.Load(sharedJson);
+            Check(shared.MediaPath == Path.GetFileName(doc.MediaPath) && !Path.IsPathRooted(shared.MediaPath) && shared.Markers.Count == 2 && risky.MediaPath == doc.MediaPath, "JSON para compartir no incluye la ruta completa del equipo");
+            ReviewDocument tooLong = new ReviewDocument { DurationFrames = 48 }; tooLong.Markers.Add(new ReviewMarker { Frame = 0, Note = new string('x', ReviewDocument.MaxNoteLength + 1) });
+            bool lengthRejected = false; try { tooLong.Validate(); } catch (InvalidDataException) { lengthRejected = true; } Check(lengthRejected, "Rechaza notas importadas más largas que el editor");
             Shuttle shuttle = new Shuttle(); Check(shuttle.Press(1) == 1 && shuttle.Press(1) == 2 && shuttle.Press(1) == 4 && shuttle.Press(-1) == 2 && shuttle.Press(-1) == 1 && shuttle.Press(-1) == -1 && shuttle.Press(-1) == -2, "J/L aceleran, frenan y cambian de dirección");
             for (int i = 0; i < 12; i++) shuttle.Press(-1); Check(shuttle.Rate == -16, "Revisión limitada a 16×");
             Check(MpvEngine.PixelDepth("gbrp10le") == "10" && MpvEngine.PixelDepth("p010") == "10" && MpvEngine.PixelDepth("unknown") == "", "Profundidad de color no se inventa para formatos desconocidos");

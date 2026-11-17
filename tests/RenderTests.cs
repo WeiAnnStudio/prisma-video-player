@@ -20,6 +20,7 @@ internal static class RenderTests
     {
         try
         {
+            Hardening.Apply();
             Application.EnableVisualStyles();
             using (Form form = new Form { Text = "Prisma — Prueba del renderizador", Size = new Size(960, 600), StartPosition = FormStartPosition.CenterScreen })
             using (Panel surface = new Panel { Dock = DockStyle.Fill, BackColor = Color.Black })

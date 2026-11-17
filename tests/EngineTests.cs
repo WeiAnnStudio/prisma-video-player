@@ -4,6 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Diagnostics;
 using System.Threading;
+using System.Net;
+using System.Net.Sockets;
+using System.Collections.Generic;
 using Prisma;
 
 internal static class EngineTests
@@ -29,6 +32,8 @@ internal static class EngineTests
         try
         {
             string root = Path.GetFullPath(args[0]), media = Path.Combine(root, "tests", "media");
+            Hardening.Apply();
+            Check(Environment.OSVersion.Platform != PlatformID.Win32NT || Hardening.Applied, "Aplica la política de carga segura de DLL");
             using (MpvEngine engine = new MpvEngine(IntPtr.Zero, Path.Combine(root, "Prisma"), false, "auto", true))
             {
                 bool loaded = false;
@@ -72,6 +77,33 @@ internal static class EngineTests
                 Check(Wait(engine, delegate { return error.Length > 0; }, 4000), "Informa de archivo dañado");
                 loaded = false; error = ""; engine.Command("loadfile", Path.Combine(media, "prores-422-10bit.mov"), "replace"); engine.Set("pause", "no");
                 Check(Wait(engine, delegate { return loaded && engine.Number("time-pos") > .1; }, 4000), "Se recupera después de un archivo dañado");
+                object tracks = engine.GetNode("track-list");
+                List<object> trackList = tracks as List<object>;
+                Dictionary<string, object> firstTrack = trackList != null && trackList.Count > 0 ? trackList[0] as Dictionary<string, object> : null;
+                Check(firstTrack != null && firstTrack["type"] is string && firstTrack["id"] is long && firstTrack["selected"] is bool && engine.GetNode("time-pos") is double, "Lee listas, mapas, textos, enteros, decimales e indicadores del motor");
+                Check(engine.GetNode("propiedad-inexistente") == null, "Una propiedad inexistente no rompe la lectura");
+                // Seguridad: listas, EDL y manifiestos HLS no pueden hacer que el motor
+                // abra direcciones de red ni otros archivos por su cuenta.
+                TcpListener trap = new TcpListener(IPAddress.Loopback, 0); trap.Start();
+                try
+                {
+                    string url = "http://127.0.0.1:" + ((IPEndPoint)trap.LocalEndpoint).Port + "/";
+                    string hostile = Path.Combine(root, "tests", "hostile"); Directory.CreateDirectory(hostile);
+                    File.WriteAllText(Path.Combine(hostile, "lista.m3u"), "#EXTM3U\n" + url + "lista.mp4\n" + Path.Combine(media, "h264-8bit.mp4") + "\n");
+                    File.WriteAllText(Path.Combine(hostile, "montaje.edl"), "# mpv EDL v0\n" + url + "montaje.mp4\n");
+                    File.WriteAllText(Path.Combine(hostile, "manifiesto.m3u8"), "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXTINF:2.0,\n" + url + "segmento.ts\n#EXT-X-ENDLIST\n");
+                    foreach (string name in new string[] { "lista.m3u", "montaje.edl", "manifiesto.m3u8" })
+                    {
+                        loaded = false; error = "";
+                        engine.Command("loadfile", Path.Combine(hostile, name), "replace"); engine.Set("pause", "no");
+                        Wait(engine, delegate { return error.Length > 0; }, 4000); Wait(engine, delegate { return false; }, 600);
+                        Check(!trap.Pending(), name + " no abre direcciones de red");
+                        Check(engine.Number("playlist/count") <= 1 && engine.Number("time-pos") <= 0, name + " no carga otros archivos");
+                    }
+                }
+                finally { trap.Stop(); }
+                loaded = false; error = ""; engine.Command("loadfile", Path.Combine(media, "h264-8bit.mp4"), "replace"); engine.Set("pause", "no");
+                Check(Wait(engine, delegate { return loaded && engine.Number("time-pos") > .1; }, 4000), "Los vídeos locales siguen abriéndose con las protecciones activas");
             }
             string settingsPath = Path.Combine(root, "tests", "settings-test.json");
             Settings settings = new Settings { Width = 1234, Height = 789, X = 43, Y = 54, Volume = 37, Hardware = false, ColorMode = "sdr" };
