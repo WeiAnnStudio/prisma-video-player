@@ -1,12 +1,26 @@
+# Motor, herramientas descargadas y binarios compilados
 vendor/
 Prisma/libmpv-2.dll
 Prisma/*.exe
+*.exe
+*.dll
+*.pdb
+*.zip
+*.7z
+
+# Datos de uso: rutas de vídeos recientes, preferencias y notas
 Prisma/datos/
 Prisma/datos-prueba/
+**/datos/
+**/marcadores/
+preferencias.json
+
+# Pruebas: medios y resultados generados en cada ejecución
 tests/media/
 tests/bin/
 tests/review-ui/
 tests/resolve/
+tests/hostile/
 tests/settings-test.json
 tests/exports/
 tests/design/
@@ -14,5 +28,34 @@ tests/backup-before-ui/
 tests/resultado.txt
 tests/revision.txt
 tests/renderizado.txt
-*.zip
+
+# Material audiovisual: nunca se publica por accidente
+*.mp4
+*.mov
+*.mxf
+*.mkv
+*.avi
+*.m4v
+*.webm
+*.mts
+*.m2ts
+*.braw
+*.r3d
+*.ari
+*.crm
+*.wav
+*.aif
+*.aiff
+*.drp
+*.drt
+
+# Metadatos de Windows que pueden revelar el equipo o el usuario
 *.lnk
+*.url
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.vs/
+*.user
+*.suo
+_respaldo*/
