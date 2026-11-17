@@ -1,0 +1,17 @@
+Prisma: código de interfaz propio, GPL-3.0-o-posterior.
+Código completo y scripts de compilación en la carpeta superior (src/, build.ps1, tools/, tests/).
+
+Motor incorporado: libmpv v0.42.0-38-gbcde6b93c, compilación x86_64 de shinchiro del 2026-11-11.
+Compilaciones de Windows enlazadas por el proyecto MPV: https://mpv.io/installation/
+Distribuidor: https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261111
+Archivo: mpv-dev-x86_64-20261111-git-bcde6b93cc.7z
+SHA-256 del archivo: 273c079b11ea5575822f972756f4c9a71149a5c10130353abeb8586738938452
+SHA-256 de libmpv-2.dll: 88504ee5560942a955405e99dfb5971368e4cf851321f36565bf2a667271db1b
+Código del motor: https://github.com/mpv-player/mpv/tree/bcde6b93cc
+Recetas y dependencias de la compilación: https://github.com/shinchiro/mpv-winbuild-cmake
+FFmpeg: https://ffmpeg.org/ — https://github.com/FFmpeg/FFmpeg
+libplacebo: https://code.videolan.org/videolan/libplacebo
+
+El motor no se ha modificado. Se incluyen la licencia GPL y el aviso Copyright de MPV.
+La licencia de Prisma es GPL-3.0-o-posterior; no implica una licencia distinta para los componentes de terceros.
+FFmpeg usado para generar las pruebas es una herramienta de desarrollo separada y no forma parte de la carpeta portátil de ejecución.
