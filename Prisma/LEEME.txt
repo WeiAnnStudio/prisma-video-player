@@ -82,4 +82,4 @@ Guarda Prisma en una carpeta propia (por ejemplo, Documentos\Prisma), no en Desc
 
 LICENCIAS Y CÓDIGO
 Código abierto GPL-3.0-o-posterior. Licencias y procedencia del motor en licencias/.
-El código del proyecto, build.ps1 y las pruebas se encuentran en la carpeta superior.
+El código del proyecto, build.ps1 y las pruebas están en https://github.com/WeiAnnStudio/prisma-video-player
