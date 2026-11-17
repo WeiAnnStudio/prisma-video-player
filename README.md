@@ -2,6 +2,8 @@
 
 Reproductor y herramienta de revisión de vídeo para Windows de 64 bits, en español. Reproduce H.264, HEVC y ProRes estándar, incluidos formatos de 10 bits. Permite avanzar fotograma a fotograma, tomar notas con código de tiempo y exportar marcadores a DaVinci Resolve o Premiere mediante XML.
 
+Prisma está basado en [mpv](https://mpv.io/). Usa libmpv como motor de reproducción, que a su vez decodifica con [FFmpeg](https://ffmpeg.org/) y muestra la imagen con [libplacebo](https://code.videolan.org/videolan/libplacebo). Prisma aporta la interfaz en español, la revisión fotograma a fotograma y las notas exportables. El motor se usa sin modificar, bajo su licencia GPL.
+
 La versión 0.3 renueva la interfaz oscura: controles vectoriales, tarjetas de revisión, editor de notas a panel completo y distribución compacta. Conserva el motor y el formato de las notas existentes.
 
 La versión 0.3.1 añade protecciones de seguridad y privacidad sin cambiar el uso diario. Consulta [Seguridad y privacidad](#seguridad-y-privacidad).
