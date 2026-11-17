@@ -41,6 +41,7 @@ namespace Prisma
         private Rectangle normalBounds;
         private double duration;
         private int tickCount, queueCount = -1;
+        private long lastDrop = -1;
         private string queueSignature = "", lastError = "";
         private float dpiScale = 1;
         private DateTime statusUntil;
@@ -166,7 +167,7 @@ namespace Prisma
             color.DropDownItems.Add(autoColorItem); color.DropDownItems.Add(sdrColorItem); view.DropDownItems.Add(color);
             ToolStripMenuItem help = new ToolStripMenuItem("Ayuda");
             help.DropDownItems.Add(Item("Atajos de teclado", delegate { ShowText("Atajos de teclado", "Ctrl+O   Abrir uno o varios vídeos\r\nCtrl+Mayús+O   Añadir a la lista\r\nEspacio   Reproducir / pausar\r\n← / →   Fotograma anterior / siguiente\r\nMayús+← / →   Retroceder / avanzar 5 segundos\r\nJ / K / L   Retroceder / pausar / avanzar\r\nRepite J o L para acelerar hasta 16×; la tecla contraria frena.\r\nMayús+J / L   Revisión a media velocidad\r\nI   Resumen sobre el vídeo\r\nCtrl+I   Información completa\r\nM   Añadir marcador con nota\r\nCtrl+M   Mostrar notas\r\nCtrl+Intro   Guardar nota en edición\r\n↑ / ↓   Volumen\r\nCtrl+Mayús+M   Silenciar\r\nInicio   Volver al principio\r\nS   Detener\r\nF o F11   Pantalla completa\r\nEsc   Salir de pantalla completa\r\nCtrl+L   Mostrar lista\r\n\r\nDoble clic sobre el vídeo: pantalla completa.\r\nEl retroceso continuo usa búsquedas precisas, sin audio, y puede ir a saltos con archivos exigentes."); }));
-            help.DropDownItems.Add(Item("Acerca de Prisma", delegate { ShowText("Acerca de Prisma", "PRISMA  ·  Versión 0.3\r\nReproductor de vídeo para Windows, en español.\r\n\r\nInterfaz propia con motor libmpv y FFmpeg.\r\nMotor: " + (engine == null ? "no disponible" : engine.Get("mpv-version")) + "\r\n\r\nCódigo abierto: GPL-3.0-o-posterior.\r\nSin garantía. Licencias y procedencia en la carpeta licencias.\r\n\r\nLa profundidad de color indicada corresponde al archivo. La salida final depende de Windows, la GPU, el cable y la pantalla.\r\n\r\nProRes estándar es compatible; ProRes RAW no está incluido."); }));
+            help.DropDownItems.Add(Item("Acerca de Prisma", delegate { ShowText("Acerca de Prisma", "PRISMA  ·  Versión 0.3.1\r\nReproductor de vídeo para Windows, en español.\r\n\r\nPrisma no se conecta a internet ni envía datos. Solo abre los archivos que eliges tú.\r\n\r\nInterfaz propia con motor libmpv y FFmpeg.\r\nMotor: " + (engine == null ? "no disponible" : engine.Get("mpv-version")) + "\r\n\r\nCódigo abierto: GPL-3.0-o-posterior.\r\nSin garantía. Licencias y procedencia en la carpeta licencias.\r\n\r\nLa profundidad de color indicada corresponde al archivo. La salida final depende de Windows, la GPU, el cable y la pantalla.\r\n\r\nProRes estándar es compatible; ProRes RAW no está incluido."); }));
             menu.Items.AddRange(new ToolStripItem[] { file, playback, audioMenu, subtitleMenu, view, help }); MainMenuStrip = menu;
         }
 
@@ -255,6 +256,7 @@ namespace Prisma
                 status.Text = lastError.Length > 0 ? lastError : idle ? "Listo para abrir un vídeo" : eof ? "Vídeo terminado · Pulsa reproducir para volver a verlo" : stopped ? "Detenido · Pulsa reproducir para comenzar" : paused ? "En pausa" : "Reproduciendo";
             }
             if (++tickCount % 10 == 0) { UpdateMetadata(); RefreshQueue(); }
+            CheckDroppedFiles();
             TickReview();
         }
         internal static string Clock(double seconds)
@@ -302,6 +304,40 @@ namespace Prisma
                 string file = path; ToolStripMenuItem item = Item(Path.GetFileName(file).Replace("&", "&&"), delegate { AddFiles(new string[] { file }, false); }); item.ToolTipText = path; recentMenu.DropDownItems.Add(item);
             }
             if (recentMenu.DropDownItems.Count == 0) recentMenu.DropDownItems.Add(new ToolStripMenuItem("Todavía no hay archivos recientes") { Enabled = false });
+            if (settings.Recent.Count > 0) { recentMenu.DropDownItems.Add(new ToolStripSeparator()); recentMenu.DropDownItems.Add(Item("Borrar lista de recientes", ClearRecent)); }
+        }
+        private void ClearRecent()
+        {
+            settings.Recent.Clear();
+            try { settings.Save(settingsPath); Notice("Lista de archivos recientes borrada", false); }
+            catch (Exception ex) { Notice("No se pudo borrar la lista: " + ex.Message, true); }
+        }
+        private static readonly string[] SubtitleExtensions = { ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".sup", ".smi", ".lrc" };
+        private static bool IsSubtitle(string path) { return SubtitleExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()); }
+        // Once a video is shown, drops land on the engine's own window. The engine only
+        // reports them; Prisma applies the same rules as the Open dialog: local files that
+        // exist, never URLs or anything the engine would otherwise load on its own.
+        private void CheckDroppedFiles()
+        {
+            if (!engine.OwnsDrops) return;
+            try { HandleDrop(); }
+            catch (Exception ex) { Notice("No se pudo abrir lo arrastrado: " + ex.Message, true); }
+        }
+        private void HandleDrop()
+        {
+            Dictionary<string, object> drop = engine.GetNode("dropped-files") as Dictionary<string, object>;
+            object stamp, files, action;
+            if (drop == null || !drop.TryGetValue("time", out stamp) || !(stamp is long) || (long)stamp == lastDrop) return;
+            lastDrop = (long)stamp;
+            List<object> list = drop.TryGetValue("files", out files) ? files as List<object> : null;
+            string[] paths = list == null ? new string[0] : list.OfType<string>().Where(p => p.IndexOf("://", StringComparison.Ordinal) < 0).ToArray();
+            bool append = drop.TryGetValue("action", out action) && (action as string) == "append";
+            if (paths.Length > 0 && paths.All(IsSubtitle))
+            {
+                foreach (string path in paths.Where(File.Exists)) engine.Command("sub-add", Path.GetFullPath(path), "select");
+                return;
+            }
+            AddFiles(paths, append);
         }
         private void OnDragEnter(object sender, DragEventArgs e) { if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; }
         private void OnDrop(object sender, DragEventArgs e) { AddFiles((string[])e.Data.GetData(DataFormats.FileDrop), false); }

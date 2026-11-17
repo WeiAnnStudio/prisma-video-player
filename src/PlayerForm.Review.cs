@@ -100,7 +100,7 @@ namespace Prisma
                     switch (Path.GetExtension(dialog.FileName).ToLowerInvariant())
                     {
                         case ".xml": review.ExportXml(dialog.FileName); break;
-                        case ".json": review.Save(dialog.FileName); break;
+                        case ".json": review.SaveForSharing(dialog.FileName); break;
                         case ".csv": review.ExportCsv(dialog.FileName); break;
                         default: throw new InvalidDataException("Usa la extensión XML, JSON o CSV.");
                     }

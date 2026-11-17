@@ -26,6 +26,8 @@ namespace Prisma
         public long DurationFrames;
         public int Width = 1920, Height = 1080, AudioChannels = 0, AudioRate = 48000;
         public List<ReviewMarker> Markers = new List<ReviewMarker>();
+        // Same limits as the note editor; imported files cannot exceed them either.
+        public const int MaxNameLength = 300, MaxNoteLength = 20000;
         [ScriptIgnore] public double Fps { get { return (double)FpsNumerator / FpsDenominator; } }
         public void SetFps(double fps)
         {
@@ -47,6 +49,7 @@ namespace Prisma
                 if (m == null || m.Frame < 0 || (DurationFrames > 0 && m.Frame >= DurationFrames)) throw new InvalidDataException("Hay marcadores fuera de la duración del vídeo.");
                 if (string.IsNullOrEmpty(m.Id)) m.Id = Guid.NewGuid().ToString("N");
                 m.Name = m.Name ?? "Nota"; m.Note = m.Note ?? "";
+                if (m.Id.Length > 64 || m.Name.Length > MaxNameLength || m.Note.Length > MaxNoteLength) throw new InvalidDataException("Hay notas demasiado largas en el documento.");
             }
         }
         public static string StoragePath(string dataFolder, string media)
@@ -62,6 +65,13 @@ namespace Prisma
             Validate(); Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
             string temp = path + ".tmp"; File.WriteAllText(temp, new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 }.Serialize(this), new UTF8Encoding(false));
             if (File.Exists(path)) File.Replace(temp, path, null); else File.Move(temp, path);
+        }
+        // Copy meant for other people: keeps the notes and the video's file name, but
+        // not the full path, which would reveal the Windows user name and folder layout.
+        public void SaveForSharing(string path)
+        {
+            ReviewDocument copy = new ReviewDocument { Version = Version, MediaPath = Path.GetFileName(MediaPath), FpsNumerator = FpsNumerator, FpsDenominator = FpsDenominator, DurationFrames = DurationFrames, Width = Width, Height = Height, AudioChannels = AudioChannels, AudioRate = AudioRate, Markers = Markers };
+            copy.Save(path);
         }
         public static ReviewDocument Load(string path)
         {
@@ -140,7 +150,13 @@ namespace Prisma
             foreach (ReviewMarker m in Markers.OrderBy(m => m.Frame)) csv.Append(m.Frame).Append(',').Append(Timecode(m.Frame)).Append(',').Append(Fps.ToString("0.########", CultureInfo.InvariantCulture)).Append(',').Append(Csv(m.Name)).Append(',').Append(Csv(m.Note)).Append("\r\n");
             File.WriteAllText(path, csv.ToString(), new UTF8Encoding(true));
         }
-        private static string Csv(string value) { return "\"" + value.Replace("\"", "\"\"") + "\""; }
+        // Spreadsheets run cells that start with = + - @ as formulas. An apostrophe
+        // keeps a note received from someone else as plain text (CSV injection).
+        internal static string Csv(string value)
+        {
+            if (value.Length > 0 && "=+-@\t\r\n".IndexOf(value[0]) >= 0) value = "'" + value;
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
     }
     internal sealed class Shuttle
     {

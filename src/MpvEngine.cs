@@ -28,6 +28,18 @@ namespace Prisma
         [DllImport("libmpv-2.dll", CallingConvention = CallingConvention.Cdecl)] private static extern IntPtr mpv_wait_event(IntPtr ctx, double timeout);
         [DllImport("libmpv-2.dll", CallingConvention = CallingConvention.Cdecl)] private static extern IntPtr mpv_error_string(int error);
         [DllImport("libmpv-2.dll", CallingConvention = CallingConvention.Cdecl)] private static extern void mpv_free(IntPtr data);
+        [DllImport("libmpv-2.dll", CallingConvention = CallingConvention.Cdecl)] private static extern int mpv_get_property(IntPtr ctx, byte[] name, int format, ref Node data);
+        [DllImport("libmpv-2.dll", CallingConvention = CallingConvention.Cdecl)] private static extern void mpv_free_node_contents(ref Node node);
+
+        // mpv_node and mpv_node_list from client.h (x64 layout).
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Node { public IntPtr Value; public int Format; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NodeList { public int Count; public IntPtr Values; public IntPtr Keys; }
+        private const int FormatString = 1, FormatFlag = 3, FormatInt64 = 4, FormatDouble = 5, FormatNode = 6, FormatArray = 7, FormatMap = 8;
+
+        /// <summary>True when Prisma, not libmpv, handles files dropped on the video.</summary>
+        public bool OwnsDrops { get; private set; }
 
         private static byte[] Utf8(string text) { return Encoding.UTF8.GetBytes(text + "\0"); }
         private static string ReadUtf8(IntPtr ptr)
@@ -61,6 +73,21 @@ namespace Prisma
                 Option("input-default-bindings", "no");
                 Option("ytdl", "no");
                 Option("load-scripts", "no");
+                // Security: a video, playlist, EDL, CUE, archive or HLS manifest must
+                // never make the engine open other files or network addresses on its
+                // own. Prisma only plays the local files the user chose explicitly.
+                Option("access-references", "no");
+                Option("load-unsafe-playlists", "no");
+                Option("input-ipc-server", "");
+                OptionalOption("autocreate-playlist", "no");
+                OptionalOption("cover-art-auto", "no");
+                OptionalOption("audio-file-auto", "no");
+                // Privacy: keep file names and thumbnails of the footage out of the
+                // Windows media overlay and lock screen.
+                OptionalOption("media-controls", "no");
+                // Dropped files go through Prisma's own checks instead of being
+                // loaded directly by the engine (see PlayerForm.CheckDroppedFiles).
+                OwnsDrops = OptionalOption("input-builtin-drag-and-drop", "no");
                 Option("audio-display", "no");
                 Option("hwdec", hardware ? "auto-safe" : "no");
                 if (headless)
@@ -92,6 +119,51 @@ namespace Prisma
             if (result < 0) throw new InvalidOperationException(ReadUtf8(mpv_error_string(result)));
         }
         private void Option(string name, string value) { Check(mpv_set_option_string(handle, Utf8(name), Utf8(value))); }
+        // For options that only exist in recent engines. The pinned engine supports all
+        // of them; failing here would only lose a privacy refinement, not a safeguard.
+        private bool OptionalOption(string name, string value)
+        {
+            int result = mpv_set_option_string(handle, Utf8(name), Utf8(value));
+            if (result < 0 && Warning != null) Warning("El motor no admite la opción " + name + ".");
+            return result >= 0;
+        }
+        // Reads any property as plain .NET values: string, long, double, bool,
+        // List<object> or Dictionary<string, object>. Returns null if unavailable.
+        public object GetNode(string name)
+        {
+            if (handle == IntPtr.Zero) return null;
+            Node node = new Node();
+            if (mpv_get_property(handle, Utf8(name), FormatNode, ref node) < 0) return null;
+            try { return Convert(node, 0); }
+            finally { mpv_free_node_contents(ref node); }
+        }
+        private static object Convert(Node node, int depth)
+        {
+            if (depth > 16) return null;
+            switch (node.Format)
+            {
+                case FormatString: return ReadUtf8(node.Value);
+                case FormatFlag: return (node.Value.ToInt64() & 0xFFFFFFFFL) != 0; // int inside the union
+                case FormatInt64: return node.Value.ToInt64();
+                case FormatDouble: return BitConverter.Int64BitsToDouble(node.Value.ToInt64());
+                case FormatArray:
+                case FormatMap:
+                    if (node.Value == IntPtr.Zero) return null;
+                    NodeList list = (NodeList)Marshal.PtrToStructure(node.Value, typeof(NodeList));
+                    int size = Marshal.SizeOf(typeof(Node)), count = Math.Max(0, Math.Min(list.Count, 100000));
+                    List<object> items = new List<object>();
+                    Dictionary<string, object> map = new Dictionary<string, object>();
+                    for (int i = 0; i < count; i++)
+                    {
+                        Node item = (Node)Marshal.PtrToStructure(new IntPtr(list.Values.ToInt64() + (long)i * size), typeof(Node));
+                        object value = Convert(item, depth + 1);
+                        if (node.Format == FormatArray) items.Add(value);
+                        else if (list.Keys != IntPtr.Zero) map[ReadUtf8(Marshal.ReadIntPtr(list.Keys, i * IntPtr.Size))] = value;
+                    }
+                    return node.Format == FormatArray ? (object)items : map;
+                default: return null;
+            }
+        }
         public bool Set(string name, string value)
         {
             if (handle == IntPtr.Zero) return false;

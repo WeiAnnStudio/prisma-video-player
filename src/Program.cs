@@ -7,7 +7,7 @@ using System.Windows.Forms;
 using System.Reflection;
 [assembly: AssemblyTitle("Prisma")]
 [assembly: AssemblyDescription("Reproductor de vídeo para Windows")]
-[assembly: AssemblyVersion("0.3.0.0")]
+[assembly: AssemblyVersion("0.3.1.0")]
 
 namespace Prisma
 {
@@ -17,6 +17,7 @@ namespace Prisma
         [STAThread]
         private static void Main(string[] args)
         {
+            Hardening.Apply();
             SetProcessDPIAware(); Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += delegate(object sender, System.Threading.ThreadExceptionEventArgs e) { MessageBox.Show("No se pudo completar la acción.\r\n\r\n" + e.Exception.Message, "Prisma", MessageBoxButtons.OK, MessageBoxIcon.Error); };
