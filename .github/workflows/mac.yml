@@ -17,6 +17,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: mac-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   mac:
     runs-on: macos-15
@@ -32,6 +36,9 @@ jobs:
         run: swift test
       - name: Compilar Prisma.app
         run: bash mac/build-app.sh
+      - name: Abrir la app con un vídeo de prueba
+        continue-on-error: true
+        run: bash mac/smoke-test.sh
       - name: Guardar el zip
         uses: actions/upload-artifact@v4
         with:
