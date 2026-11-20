@@ -7,7 +7,7 @@ using System.Windows.Forms;
 using System.Reflection;
 [assembly: AssemblyTitle("Prisma")]
 [assembly: AssemblyDescription("Reproductor de vídeo para Windows")]
-[assembly: AssemblyVersion("0.3.1.0")]
+[assembly: AssemblyVersion("0.4.0.0")]
 
 namespace Prisma
 {
@@ -15,15 +15,37 @@ namespace Prisma
     {
         [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
         [STAThread]
-        private static void Main(string[] args)
+        private static int Main(string[] args)
         {
             Hardening.Apply();
+            string data = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos");
+            // Started by Claude or ChatGPT desktop: no window, no engine, read-only notes server.
+            if (args.Length == 1 && args[0] == "--mcp") return McpServer.Run(Path.Combine(data, "marcadores"));
+
+            bool testSession = args.Contains("--test-session");
+            string[] files = args.Where(a => a != "--test-session").ToArray();
+            SingleInstance instance = testSession ? null : new SingleInstance();
+            if (instance != null && !instance.IsFirst)
+            {
+                bool delivered = instance.Send(files);
+                instance.Dispose();
+                if (delivered) return 0;
+                instance = null; // The open window did not answer: open this one instead.
+            }
+
             SetProcessDPIAware(); Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += delegate(object sender, System.Threading.ThreadExceptionEventArgs e) { MessageBox.Show("No se pudo completar la acción.\r\n\r\n" + e.Exception.Message, "Prisma", MessageBoxButtons.OK, MessageBoxIcon.Error); };
-            string settings = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos", "preferencias.json");
-            if (args.Contains("--test-session")) settings = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos-prueba", "preferencias.json");
-            Application.Run(new PlayerForm(args.Where(a => a != "--test-session").ToArray(), settings));
+            string settings = Path.Combine(testSession ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos-prueba") : data, "preferencias.json");
+            PlayerForm form = new PlayerForm(files, settings);
+            if (instance != null)
+            {
+                instance.FilesReceived += form.OpenFromAnotherLaunch;
+                instance.Listen();
+            }
+            Application.Run(form);
+            if (instance != null) instance.Dispose();
+            return 0;
         }
     }
 }

@@ -42,6 +42,9 @@ namespace Prisma
         private double duration;
         private int tickCount, queueCount = -1;
         private long lastDrop = -1;
+        private readonly object incomingLock = new object();
+        private readonly List<string[]> incoming = new List<string[]>();
+        private DateTime lastIncoming = DateTime.MinValue;
         private string queueSignature = "", lastError = "";
         private float dpiScale = 1;
         private DateTime statusUntil;
@@ -167,7 +170,7 @@ namespace Prisma
             color.DropDownItems.Add(autoColorItem); color.DropDownItems.Add(sdrColorItem); view.DropDownItems.Add(color);
             ToolStripMenuItem help = new ToolStripMenuItem("Ayuda");
             help.DropDownItems.Add(Item("Atajos de teclado", delegate { ShowText("Atajos de teclado", "Ctrl+O   Abrir uno o varios vídeos\r\nCtrl+Mayús+O   Añadir a la lista\r\nEspacio   Reproducir / pausar\r\n← / →   Fotograma anterior / siguiente\r\nMayús+← / →   Retroceder / avanzar 5 segundos\r\nJ / K / L   Retroceder / pausar / avanzar\r\nRepite J o L para acelerar hasta 16×; la tecla contraria frena.\r\nMayús+J / L   Revisión a media velocidad\r\nI   Resumen sobre el vídeo\r\nCtrl+I   Información completa\r\nM   Añadir marcador con nota\r\nCtrl+M   Mostrar notas\r\nCtrl+Intro   Guardar nota en edición\r\n↑ / ↓   Volumen\r\nCtrl+Mayús+M   Silenciar\r\nInicio   Volver al principio\r\nS   Detener\r\nF o F11   Pantalla completa\r\nEsc   Salir de pantalla completa\r\nCtrl+L   Mostrar lista\r\n\r\nDoble clic sobre el vídeo: pantalla completa.\r\nEl retroceso continuo usa búsquedas precisas, sin audio, y puede ir a saltos con archivos exigentes."); }));
-            help.DropDownItems.Add(Item("Acerca de Prisma", delegate { ShowText("Acerca de Prisma", "PRISMA  ·  Versión 0.3.1\r\nReproductor de vídeo para Windows, en español.\r\n\r\nPrisma no se conecta a internet ni envía datos. Solo abre los archivos que eliges tú.\r\n\r\nInterfaz propia con motor libmpv y FFmpeg.\r\nMotor: " + (engine == null ? "no disponible" : engine.Get("mpv-version")) + "\r\n\r\nCódigo abierto: GPL-3.0-o-posterior.\r\nSin garantía. Licencias y procedencia en la carpeta licencias.\r\n\r\nLa profundidad de color indicada corresponde al archivo. La salida final depende de Windows, la GPU, el cable y la pantalla.\r\n\r\nProRes estándar es compatible; ProRes RAW no está incluido."); }));
+            help.DropDownItems.Add(Item("Acerca de Prisma", delegate { ShowText("Acerca de Prisma", "PRISMA  ·  Versión 0.4\r\nReproductor de vídeo para Windows, en español.\r\n\r\nPrisma no se conecta a internet ni envía datos. Solo abre los archivos que eliges tú.\r\n\r\nInterfaz propia con motor libmpv y FFmpeg.\r\nMotor: " + (engine == null ? "no disponible" : engine.Get("mpv-version")) + "\r\n\r\nCódigo abierto: GPL-3.0-o-posterior.\r\nSin garantía. Licencias y procedencia en la carpeta licencias.\r\n\r\nLa profundidad de color indicada corresponde al archivo. La salida final depende de Windows, la GPU, el cable y la pantalla.\r\n\r\nProRes estándar es compatible; ProRes RAW no está incluido."); }));
             menu.Items.AddRange(new ToolStripItem[] { file, playback, audioMenu, subtitleMenu, view, help }); MainMenuStrip = menu;
         }
 
@@ -212,6 +215,7 @@ namespace Prisma
                 engine.Event += EngineEvent; engine.Warning += delegate(string message) { Notice(message, true); };
                 engine.Set("volume", settings.Volume.ToString()); timer.Start();
                 if (startupFiles.Length > 0) AddFiles(startupFiles, false);
+                ProcessIncoming();
             }
             catch (Exception ex)
             {
@@ -305,6 +309,28 @@ namespace Prisma
             }
             if (recentMenu.DropDownItems.Count == 0) recentMenu.DropDownItems.Add(new ToolStripMenuItem("Todavía no hay archivos recientes") { Enabled = false });
             if (settings.Recent.Count > 0) { recentMenu.DropDownItems.Add(new ToolStripSeparator()); recentMenu.DropDownItems.Add(Item("Borrar lista de recientes", ClearRecent)); }
+        }
+        // Files from a second launch (double-clicking another video in Explorer). Called from any thread.
+        public void OpenFromAnotherLaunch(string[] files)
+        {
+            lock (incomingLock) incoming.Add(files ?? new string[0]);
+            if (IsHandleCreated && engine != null) BeginInvoke(new Action(ProcessIncoming));
+        }
+        private void ProcessIncoming()
+        {
+            List<string[]> batches;
+            lock (incomingLock) { batches = new List<string[]>(incoming); incoming.Clear(); }
+            if (batches.Count == 0 || engine == null) return;
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            Activate(); BringToFront();
+            foreach (string[] files in batches)
+            {
+                if (files.Length == 0) continue;
+                // Several videos opened together from Explorer arrive as separate launches a moment
+                // apart: the first replaces what was playing and the rest join it as a playlist.
+                bool append = (DateTime.Now - lastIncoming).TotalSeconds < 2;
+                AddFiles(files, append); lastIncoming = DateTime.Now;
+            }
         }
         private void ClearRecent()
         {
@@ -493,6 +519,7 @@ namespace Prisma
             if (keyData == (Keys.Control | Keys.I)) { ShowInfo(); return true; }
             if (keyData == (Keys.Control | Keys.L)) { ToggleQueue(); return true; }
             if (keyData == (Keys.Control | Keys.M)) { ToggleNotes(); return true; }
+            if (keyData == (Keys.Control | Keys.Shift | Keys.R)) { SendToResolve(); return true; }
             if (keyData == Keys.F11 || keyData == Keys.F) { ToggleFullscreen(); return true; }
             if (keyData == Keys.Escape && fullscreen) { ToggleFullscreen(); return true; }
             if (engine != null)

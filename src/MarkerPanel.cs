@@ -25,13 +25,14 @@ namespace Prisma
         private readonly FlatButton add = new FlatButton("Nueva nota", "Añadir nota en este fotograma (M)", true);
         private readonly FlatButton edit = new FlatButton("Editar", "Editar nota seleccionada", false);
         private readonly FlatButton import = new FlatButton("Importar", "Importar marcadores", false), export = new FlatButton("Exportar", "Exportar marcadores", false);
+        private readonly FlatButton cloud = new FlatButton("Carpeta en la nube", "Carpeta en la nube para las notas de este vídeo", false), resolve = new FlatButton("Enviar a Resolve", "Enviar las notas a la línea de tiempo abierta en DaVinci Resolve", false);
         private readonly Font codeFont = new Font("Consolas", 9.5f), nameFont = new Font("Segoe UI Semibold", 10), bodyFont = new Font("Segoe UI", 9.5f);
         private ReviewDocument document;
         private ReviewMarker pending;
         private float scale = 1;
         private bool editing;
         public bool Editing { get { return editing; } }
-        public event Action Add, Import, Export;
+        public event Action Add, Import, Export, Cloud, SendResolve;
         public event Action<ReviewMarker> Jump;
         public event Action Changed;
         private static Label Label(string text, float size, Color color)
@@ -45,7 +46,9 @@ namespace Prisma
             heading.Font=new Font("Segoe UI Semibold",14); editorHeading.Font=new Font("Segoe UI Semibold",14);
             count.TextAlign=ContentAlignment.MiddleCenter; count.BackColor=Theme.AccentSoft;
             add.Icon=Symbol.Plus; edit.Icon=Symbol.Edit; import.Icon=Symbol.Import; export.Icon=Symbol.Export;
-            import.Outlined=export.Outlined=true; save.Icon=Symbol.Check;
+            import.Outlined=export.Outlined=cloud.Outlined=resolve.Outlined=true; save.Icon=Symbol.Check; cloud.Icon=Symbol.Folder; resolve.Icon=Symbol.Export;
+            cloud.Click += delegate { if(Cloud!=null) Cloud(); };
+            resolve.Click += delegate { if(SendResolve!=null) SendResolve(); };
             add.Click += delegate { if(Add!=null) Add(); };
             edit.Click += delegate { if(Selected!=null) BeginEdit(Selected); };
             import.Click += delegate { if(Import!=null) Import(); };
@@ -75,7 +78,7 @@ namespace Prisma
             fields.Controls.AddRange(new Control[]{at,frame,titleLabel,titleBox,noteLabel,noteBox}); editorScroll.Controls.Add(fields);
             editor.Controls.AddRange(new Control[]{editorHeading,editorScroll,saveHint,save,cancel});
             save.Click += delegate { SaveEdit(); }; cancel.Click += delegate { CancelEdit(); };
-            Controls.AddRange(new Control[]{heading,subtitle,count,add,section,edit,list,empty,hint,import,export,editor});
+            Controls.AddRange(new Control[]{heading,subtitle,count,add,section,edit,list,empty,hint,cloud,resolve,import,export,editor});
             Resize += delegate { Arrange(); };
             SetScale(1); RefreshMarkers(null);
         }
@@ -85,12 +88,17 @@ namespace Prisma
             input.Font=new Font("Segoe UI",10); input.AccessibleName=accessible; input.MaxLength=max; input.Multiline=multiline;
             input.AcceptsReturn=multiline; input.ScrollBars=multiline ? ScrollBars.Vertical : ScrollBars.None;
         }
+        public void SetCloud(string service)
+        {
+            cloud.Text=service.Length==0 ? "Carpeta en la nube" : service;
+            cloud.Active=service.Length>0; cloud.Invalidate();
+        }
         public void SetScale(float value) { scale=value; Arrange(); }
         private void Arrange()
         {
             int pad=S(18), w=Math.Max(S(200),ClientSize.Width-2*pad), h=ClientSize.Height;
             bool compact=h<S(350);
-            int listTop=compact ? S(102) : S(132), bottomSpace=compact ? S(64) : S(82);
+            int listTop=compact ? S(102) : S(132), bottomSpace=compact ? S(108) : S(126);
             list.ItemHeight=Math.Min(255,S(compact ? 108 : 126));
             heading.SetBounds(pad,S(16),w-S(42),S(30)); count.SetBounds(pad+w-S(32),S(21),S(32),S(24));
             subtitle.SetBounds(pad,S(47),w,S(22)); subtitle.Visible=!compact && !editing;
@@ -99,9 +107,10 @@ namespace Prisma
             int bottom=Math.Max(listTop,h-bottomSpace);
             list.SetBounds(pad,listTop,w,Math.Max(0,bottom-listTop)); empty.Bounds=list.Bounds;
             if(compact) list.ItemHeight=Math.Min(S(108),Math.Max(S(88),list.Height));
-            hint.SetBounds(pad,h-S(75),w,S(20));
+            hint.SetBounds(pad,h-S(119),w,S(20));
             hint.Visible=!compact && !editing;
             int half=(w-S(10))/2; import.SetBounds(pad,h-S(46),half,S(34)); export.SetBounds(pad+half+S(10),h-S(46),w-half-S(10),S(34));
+            cloud.SetBounds(pad,h-S(90),half,S(34)); resolve.SetBounds(pad+half+S(10),h-S(90),w-half-S(10),S(34));
             editor.Bounds=ClientRectangle;
             editorHeading.SetBounds(pad,S(16),w,S(34));
             editorScroll.SetBounds(pad,S(60),w,Math.Max(S(40),h-S(146)));
@@ -118,7 +127,7 @@ namespace Prisma
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            using(Pen p=new Pen(Theme.Border)) { e.Graphics.DrawLine(p,0,0,0,Height); if(!editing) { int bottom=Height<S(350) ? S(56) : S(86); e.Graphics.DrawLine(p,S(18),Height-bottom,Width-S(18),Height-bottom); } }
+            using(Pen p=new Pen(Theme.Border)) { e.Graphics.DrawLine(p,0,0,0,Height); if(!editing) { int bottom=Height<S(350) ? S(100) : S(130); e.Graphics.DrawLine(p,S(18),Height-bottom,Width-S(18),Height-bottom); } }
         }
         private ReviewMarker Selected { get { return list.SelectedItem as ReviewMarker; } }
         public void RefreshMarkers(ReviewDocument doc)
@@ -130,7 +139,8 @@ namespace Prisma
             for(int i=0;i<list.Items.Count;i++) if(((ReviewMarker)list.Items[i]).Id==id) list.SelectedIndex=i;
             if(list.SelectedIndex<0 && list.Items.Count>0) list.SelectedIndex=0;
             count.Text=list.Items.Count.ToString(); edit.Enabled=Selected!=null;
-            add.Enabled=import.Enabled=export.Enabled=doc!=null; empty.Visible=list.Items.Count==0 && !editing;
+            add.Enabled=import.Enabled=export.Enabled=cloud.Enabled=resolve.Enabled=doc!=null;
+            SetCloud(SyncDelivery.Label(doc)); empty.Visible=list.Items.Count==0 && !editing;
             empty.Text=doc==null ? "Todo listo para revisar\n\nAbre un vídeo para añadir\nnotas a sus fotogramas." : "Tu revisión empieza aquí\n\nPulsa M sobre un fotograma\npara añadir tu primera nota.";
         }
         private void SetEditing(bool value)

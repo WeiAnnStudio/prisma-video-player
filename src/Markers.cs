@@ -22,6 +22,10 @@ namespace Prisma
     {
         public int Version = 1;
         public string MediaPath = "";
+        // Cloud folder chosen for this video (Google Drive, Dropbox or OneDrive).
+        public string CloudFolder = "";
+        // Folder on this computer kept in sync by Google Drive, Dropbox or OneDrive (automatic delivery).
+        public string SyncFolder = "", SyncHash = "";
         public int FpsNumerator = 25, FpsDenominator = 1;
         public long DurationFrames;
         public int Width = 1920, Height = 1080, AudioChannels = 0, AudioRate = 48000;
@@ -44,6 +48,10 @@ namespace Prisma
         public void Validate()
         {
             if (Version != 1 || FpsNumerator <= 0 || FpsDenominator <= 0 || Fps < 1 || Fps > 240 || DurationFrames < 0 || Markers == null || Markers.Count > 100000) throw new InvalidDataException("El documento de marcadores no es válido.");
+            string folder, service;
+            CloudFolder = CloudFolder != null && CloudFolder.Length > 0 && global::Prisma.CloudFolder.TryNormalize(CloudFolder, out folder, out service) ? folder : "";
+            if (SyncFolder == null || !global::Prisma.SyncDelivery.IsValidFolder(SyncFolder)) SyncFolder = "";
+            if (SyncHash == null || SyncHash.Length > 64) SyncHash = "";
             foreach (ReviewMarker m in Markers)
             {
                 if (m == null || m.Frame < 0 || (DurationFrames > 0 && m.Frame >= DurationFrames)) throw new InvalidDataException("Hay marcadores fuera de la duración del vídeo.");
@@ -68,11 +76,12 @@ namespace Prisma
         }
         // Copy meant for other people: keeps the notes and the video's file name, but
         // not the full path, which would reveal the Windows user name and folder layout.
-        public void SaveForSharing(string path)
+        public ReviewDocument SharingCopy()
         {
-            ReviewDocument copy = new ReviewDocument { Version = Version, MediaPath = Path.GetFileName(MediaPath), FpsNumerator = FpsNumerator, FpsDenominator = FpsDenominator, DurationFrames = DurationFrames, Width = Width, Height = Height, AudioChannels = AudioChannels, AudioRate = AudioRate, Markers = Markers };
-            copy.Save(path);
+            return new ReviewDocument { Version = Version, MediaPath = Path.GetFileName(MediaPath), CloudFolder = "", FpsNumerator = FpsNumerator, FpsDenominator = FpsDenominator, DurationFrames = DurationFrames, Width = Width, Height = Height, AudioChannels = AudioChannels, AudioRate = AudioRate, Markers = Markers.OrderBy(m => m.Frame).ToList() };
         }
+        public void SaveForSharing(string path) { SharingCopy().Save(path); }
+        public string SharingJson() { ReviewDocument copy = SharingCopy(); copy.Validate(); return new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 }.Serialize(copy); }
         public static ReviewDocument Load(string path)
         {
             if (new FileInfo(path).Length > 16 * 1024 * 1024) throw new InvalidDataException("El documento de marcadores es demasiado grande.");
