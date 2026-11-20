@@ -63,3 +63,6 @@ tests/*.tmp
 tests/mcp/
 tests/resolve-lua.txt
 _subir*/
+mac/.build/
+mac/build/
+mac/AppIcon.png
