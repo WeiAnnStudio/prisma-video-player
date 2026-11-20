@@ -1,0 +1,63 @@
+PRISMA 0.4 PARA MAC — REPRODUCTOR Y REVISOR DE VÍDEO
+
+Prisma reproduce vídeo y permite revisar fotograma a fotograma con notas de código de tiempo.
+Las notas son las mismas que en Prisma para Windows: un Mac y un PC pueden intercambiarlas.
+Funciona en macOS 13 Ventura o posterior, en Mac con Apple Silicon (M1, M2, M3, M4...) y con Intel.
+
+INSTALAR (UNA SOLA VEZ)
+1. Arrastra Prisma.app a la carpeta Aplicaciones.
+2. Ábrelo con doble clic. macOS avisará de que no puede comprobar el desarrollador, porque
+   Prisma no está firmado por Apple. Pulsa «Aceptar» (no lo muevas a la papelera).
+3. Abre Ajustes del Sistema > Privacidad y seguridad. Abajo verás «Se ha bloqueado Prisma».
+   Pulsa «Abrir igualmente» y confirma con tu contraseña o Touch ID.
+4. A partir de ahí se abre normalmente.
+Para que los vídeos se abran con Prisma: clic derecho en un vídeo > Obtener información >
+Abrir con: Prisma > «Cambiar todo...».
+
+REPRODUCIR
+Arrastra un vídeo a la ventana, usa Archivo > Abrir (⌘O) o haz doble clic en un vídeo si Prisma
+es la aplicación predeterminada. Prisma usa una sola ventana: un vídeo nuevo sustituye al anterior.
+Si abres varios a la vez, forman una lista de reproducción (menú Reproducción > Lista).
+Usa el motor de vídeo de Apple: ProRes (422, HQ, 4444, XQ), HEVC y H.264, incluidos 10 y 12 bits.
+El HDR se ve con rango extendido en pantallas compatibles (Liquid Retina XDR, Pro Display XDR...).
+ProRes RAW, MXF y los formatos que macOS no reproduce no están incluidos en la versión de Mac.
+
+ATAJOS
+Espacio  reproducir / pausar          ← / →  fotograma anterior / siguiente
+J / K / L  atrás / pausa / adelante (repite J o L para acelerar hasta 16×)
+⇧J / ⇧L  media velocidad              ⇧← / ⇧→  5 segundos atrás / adelante
+M  añadir nota en este fotograma      N  mostrar notas
+I  resumen sobre el vídeo             ⌘I  información completa
+F  pantalla completa                  ⇧⌘R  enviar notas a DaVinci Resolve
+
+NOTAS DE REVISIÓN
+Pulsa M sobre un fotograma, escribe la nota y guarda con ⌘↩. Clic en una nota: ir a su fotograma.
+Doble clic: editarla. Las notas se guardan solas, por vídeo, en tu Mac.
+Exportar: XML para DaVinci Resolve / Premiere, .prisma.json (para otro Prisma) o CSV.
+Importar: XML de Final Cut Pro 7 o .prisma.json de otro Prisma, de Mac o de Windows.
+
+ENVIAR A DAVINCI RESOLVE (⇧⌘R)
+Las notas se añaden como marcadores rojos a la línea de tiempo abierta en Resolve, sin crear otra.
+Requisitos: DaVinci Resolve Studio abierto y, una sola vez, DaVinci Resolve > Ajustes > Sistema >
+General > Scripting externo (External scripting using): Local. Reinicia Resolve después.
+Los FPS de la línea de tiempo deben coincidir con los del vídeo, o no se añade nada.
+Enviar dos veces no duplica. Con Resolve gratuito, Prisma te ofrece exportar el XML.
+
+TRABAJO EN EQUIPO CON LA NUBE Y LA IA
+En el panel de notas, pulsa «Carpeta en la nube». Cada vídeo recuerda la suya.
+AUTOMÁTICA (sin IA): «Elegir carpeta del Mac…» y escoge una carpeta que Google Drive, Dropbox u
+OneDrive sincronicen en este Mac. Al cambiar una nota, Prisma escribe ahí «Ajustes <vídeo>.docx»
+y «<vídeo>.prisma.json», y la nube los sube.
+CON IA: pega el enlace de la carpeta. Una sola vez: menú IA > Conectar con Claude o con ChatGPT y
+reinicia esa app. Después pide en un chat: «Pasa a la nube las notas de <vídeo>».
+Antes de conectar, Prisma tiene que estar en la carpeta Aplicaciones.
+
+SEGURIDAD Y PRIVACIDAD
+Prisma no se conecta a internet ni envía datos. Solo abre archivos locales que eliges tú; rechaza
+listas M3U/M3U8 y enlaces. El JSON para compartir no incluye rutas de tu Mac.
+La conexión con Claude o ChatGPT es de solo lectura: la IA ve el nombre del vídeo, los FPS, la
+carpeta asociada y el texto de las notas, nunca las rutas de tu Mac.
+El envío a Resolve usa el fuscript de tu Resolve con un script fijo incluido en Prisma.
+Tus notas están en ~/Library/Application Support/Prisma.
+
+Código abierto: GPL-3.0-o-posterior. Sin garantía. Licencia en la carpeta licencias.
