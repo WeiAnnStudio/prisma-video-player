@@ -1,4 +1,4 @@
-PRISMA 0.3.1 — REPRODUCTOR Y REVISOR DE VÍDEO
+PRISMA 0.4 — REPRODUCTOR Y REVISOR DE VÍDEO
 
 Abre Prisma.exe. Mantén libmpv-2.dll en la misma carpeta.
 Windows 10/11 de 64 bits, con .NET Framework 4.8.
@@ -6,6 +6,8 @@ La carpeta completa es portátil. No necesita instalar paquetes de códecs.
 
 REPRODUCCIÓN
 Arrastra un vídeo a la ventana o usa Abrir vídeo. Puedes elegir varios archivos.
+Prisma usa una sola ventana: un vídeo abierto desde el Explorador sustituye al que se está viendo.
+Si abres varios a la vez, forman una lista de reproducción (Ctrl+L para verla).
 Prisma recuerda tamaño, posición y volumen, y mantiene el último fotograma al terminar.
 H.264, H.265/HEVC y ProRes estándar se decodifican con libmpv/FFmpeg.
 ProRes RAW no está incluido. El soporte de un códec no garantiza tiempo real en cualquier resolución.
@@ -59,6 +61,31 @@ Los marcadores son de secuencia y sus tiempos se cuentan desde el primer fotogra
 Se conserva la tasa racional de fotogramas (por ejemplo 24000/1001). El código de tiempo mostrado es NDF.
 La correspondencia por fotogramas presupone un render de FPS constantes. Para material VFR, conviene generar un render CFR de revisión.
 
+ENVIAR A DAVINCI RESOLVE (Ctrl+Mayús+R)
+Pulsa «Enviar a Resolve» en el panel de notas. Las notas se añaden como marcadores rojos
+a la línea de tiempo que tengas abierta en DaVinci Resolve, sin crear otra.
+Requisitos: DaVinci Resolve Studio abierto y, una sola vez, Preferencias > Sistema > General >
+Scripting externo (External scripting using): Local. Reinicia Resolve después de cambiarlo.
+Los FPS de la línea de tiempo deben coincidir con los del vídeo, o no se añade nada.
+Enviar dos veces no duplica. Si un fotograma ya tiene marcador, la nota pasa al siguiente libre.
+Las posiciones cuentan desde el primer fotograma de la línea de tiempo: el render revisado debe empezar ahí.
+Con DaVinci Resolve gratuito no es posible: Prisma te ofrece exportar el XML y te explica cómo importarlo.
+
+TRABAJO EN EQUIPO CON LA NUBE Y LA IA
+En el panel de notas, pulsa «Carpeta en la nube». Cada vídeo recuerda la suya. Hay dos formas:
+
+AUTOMÁTICA (sin IA): «Elegir carpeta del equipo…» y escoge una carpeta que Google Drive, Dropbox
+u OneDrive sincronicen en este PC (por ejemplo G:\Mi unidad\Revisiones). Cada vez que cambias
+una nota, Prisma escribe ahí «Ajustes Corto 12.docx» y «Corto 12.prisma.json» y la nube los sube.
+Si alguien editó el documento, su versión se conserva con otro nombre.
+
+CON IA: pega el enlace de la carpeta. Una sola vez: menú IA > Conectar con Claude o con ChatGPT
+y reinicia esa app (no pide contraseñas; activa en ella el conector de tu nube). Después pide en un
+chat: «Pasa a la nube las notas de Corto 12». Crea el Google Doc y el archivo .prisma.json.
+
+Quien edita abre el mismo render en su Prisma, pulsa Importar, elige el .prisma.json de la carpeta
+y después «Enviar a Resolve».
+
 OTROS FORMATOS E IMPORTACIÓN
 JSON de Prisma: conserva todas las notas y sirve para compartirlas y volverlas a abrir en Prisma.
 CSV: documento de lectura con fotograma, código de tiempo, FPS, título y nota.
@@ -79,6 +106,8 @@ la ruta completa para enlazar el vídeo, y esa ruta puede mostrar tu usuario de 
 Revisa el XML antes de enviarlo a otras personas.
 En el CSV, las notas que empiezan por =, +, - o @ llevan un apóstrofo para que Excel no las ejecute.
 Guarda Prisma en una carpeta propia (por ejemplo, Documentos\Prisma), no en Descargas.
+La conexión con Claude o ChatGPT es de solo lectura: la IA ve el nombre del vídeo, los FPS, la carpeta
+asociada y el texto de las notas, nunca las rutas de tu equipo. Si mueves la carpeta de Prisma, vuelve a conectar.
 
 LICENCIAS Y CÓDIGO
 Código abierto GPL-3.0-o-posterior. Licencias y procedencia del motor en licencias/.
