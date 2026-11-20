@@ -99,6 +99,11 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 30), queue: .main) { [weak self] _ in self?.updateTime() }
         rateObserver = player.observe(\.rate, options: [.new]) { [weak self] _, _ in DispatchQueue.main.async { self?.updatePlayButton() } }
+        // The notes panel and the summary stay as the user left them.
+        notesShown = UserDefaults.standard.bool(forKey: "mostrarNotas")
+        notesButton.active = notesShown
+        summaryShown = UserDefaults.standard.bool(forKey: "mostrarResumen")
+        summary.isHidden = !summaryShown
         updateTime()
     }
 
@@ -428,6 +433,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
     func toggleNotes() {
         notesShown.toggle()
+        UserDefaults.standard.set(notesShown, forKey: "mostrarNotas")
         notesButton.active = notesShown
         layoutPlayer()
         if !notesShown { notesPanel.commitEdit(); window?.makeFirstResponder(root) }
@@ -467,6 +473,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
     func toggleSummary() {
         summaryShown.toggle()
+        UserDefaults.standard.set(summaryShown, forKey: "mostrarResumen")
         summary.isHidden = !summaryShown
         updateSummary()
     }
