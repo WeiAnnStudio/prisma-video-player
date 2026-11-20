@@ -17,12 +17,12 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     private let timeLabel = Theme.label("--:--:--:--", size: 13)
     private let noticeLabel = Theme.label("", size: 12, color: Theme.muted)
     private let volume = NSSlider(value: 1, minValue: 0, maxValue: 1, target: nil, action: nil)
-    private lazy var openButton = FlatButton("Abrir", symbol: "folder", style: .outlined, tip: "Abrir vídeos (⌘O)") { [weak self] in self?.chooseFiles(append: false) }
-    private lazy var backButton = FlatButton("", symbol: "backward.frame.fill", tip: "Fotograma anterior (←)") { [weak self] in self?.step(-1) }
-    private lazy var playButton = FlatButton("", symbol: "play.fill", tip: "Reproducir / pausar (Espacio)") { [weak self] in self?.togglePlay() }
-    private lazy var forwardButton = FlatButton("", symbol: "forward.frame.fill", tip: "Fotograma siguiente (→)") { [weak self] in self?.step(1) }
-    private lazy var notesButton = FlatButton("Notas  N", symbol: "text.bubble", style: .outlined, tip: "Mostrar notas de revisión (N)") { [weak self] in self?.toggleNotes() }
-    private lazy var infoButton = FlatButton("", symbol: "info.circle", tip: "Información del vídeo (⌘I)") { [weak self] in self?.showInfo() }
+    private lazy var openButton: FlatButton = FlatButton("Abrir", symbol: "folder", style: .outlined, tip: "Abrir vídeos (⌘O)") { [weak self] in self?.chooseFiles(append: false) }
+    private lazy var backButton: FlatButton = FlatButton("", symbol: "backward.frame.fill", tip: "Fotograma anterior (←)") { [weak self] in self?.step(-1) }
+    private lazy var playButton: FlatButton = FlatButton("", symbol: "play.fill", tip: "Reproducir / pausar (Espacio)") { [weak self] in self?.togglePlay() }
+    private lazy var forwardButton: FlatButton = FlatButton("", symbol: "forward.frame.fill", tip: "Fotograma siguiente (→)") { [weak self] in self?.step(1) }
+    private lazy var notesButton: FlatButton = FlatButton("Notas  N", symbol: "text.bubble", style: .outlined, tip: "Mostrar notas de revisión (N)") { [weak self] in self?.toggleNotes() }
+    private lazy var infoButton: FlatButton = FlatButton("", symbol: "info.circle", tip: "Información del vídeo (⌘I)") { [weak self] in self?.showInfo() }
     private let speaker = NSImageView()
 
     var playlist: [URL] = []

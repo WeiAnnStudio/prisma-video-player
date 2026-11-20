@@ -61,15 +61,15 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
     private let heading = Theme.label("Notas", size: 18, weight: .semibold)
     private let subtitle = Theme.label("Revisión con código de tiempo", size: 12, color: Theme.muted)
     private let count = Theme.label("0", size: 12, weight: .semibold, color: Theme.accent)
-    private lazy var add = FlatButton("Añadir nota", symbol: "plus", style: .accent, tip: "Añadir nota en este fotograma (M)") { [weak self] in self?.onAdd?() }
+    private lazy var add: FlatButton = FlatButton("Añadir nota", symbol: "plus", style: .accent, tip: "Añadir nota en este fotograma (M)") { [weak self] in self?.onAdd?() }
     private let table = NSTableView()
-    private let scroll = NSScrollView()
+    private let scrollView = NSScrollView()
     private let empty = NSTextField(wrappingLabelWithString: "")
     private let hint = Theme.label("Clic: ir a la nota · Doble clic: editar", size: 11, color: Theme.muted)
-    private lazy var cloud = FlatButton("Carpeta en la nube", symbol: "folder", style: .outlined, tip: "Carpeta en la nube para las notas de este vídeo") { [weak self] in self?.onCloud?() }
-    private lazy var resolve = FlatButton("Enviar a Resolve", symbol: "paperplane", style: .outlined, tip: "Enviar las notas a la línea de tiempo abierta en DaVinci Resolve (⇧⌘R)") { [weak self] in self?.onResolve?() }
-    private lazy var importButton = FlatButton("Importar", symbol: "square.and.arrow.down", style: .outlined, tip: "Importar notas (XML / JSON)") { [weak self] in self?.onImport?() }
-    private lazy var exportButton = FlatButton("Exportar", symbol: "square.and.arrow.up", style: .outlined, tip: "Exportar notas (XML / JSON / CSV)") { [weak self] in
+    private lazy var cloud: FlatButton = FlatButton("Carpeta en la nube", symbol: "folder", style: .outlined, tip: "Carpeta en la nube para las notas de este vídeo") { [weak self] in self?.onCloud?() }
+    private lazy var resolve: FlatButton = FlatButton("Enviar a Resolve", symbol: "paperplane", style: .outlined, tip: "Enviar las notas a la línea de tiempo abierta en DaVinci Resolve (⇧⌘R)") { [weak self] in self?.onResolve?() }
+    private lazy var importButton: FlatButton = FlatButton("Importar", symbol: "square.and.arrow.down", style: .outlined, tip: "Importar notas (XML / JSON)") { [weak self] in self?.onImport?() }
+    private lazy var exportButton: FlatButton = FlatButton("Exportar", symbol: "square.and.arrow.up", style: .outlined, tip: "Exportar notas (XML / JSON / CSV)") { [weak self] in
         guard let self else { return }
         self.onExport?(self.exportButton)
     }
@@ -83,9 +83,9 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
     private let noteLabel = Theme.label("Nota", size: 12, color: Theme.muted)
     private let noteScroll = NSTextView.scrollableTextView()
     private var noteView: NSTextView { noteScroll.documentView as! NSTextView }
-    private lazy var save = FlatButton("Guardar", symbol: "checkmark", style: .accent, tip: "Guardar nota (⌘↩)") { [weak self] in self?.commitEdit() }
-    private lazy var cancel = FlatButton("Cancelar", style: .outlined, tip: "Cancelar (Esc)") { [weak self] in self?.cancelEdit() }
-    private lazy var delete = FlatButton("Eliminar", symbol: "trash", style: .plain, tip: "Eliminar esta nota") { [weak self] in self?.deleteEditing() }
+    private lazy var saveButton: FlatButton = FlatButton("Guardar", symbol: "checkmark", style: .accent, tip: "Guardar nota (⌘↩)") { [weak self] in self?.commitEdit() }
+    private lazy var cancelButton: FlatButton = FlatButton("Cancelar", style: .outlined, tip: "Cancelar (Esc)") { [weak self] in self?.cancelEdit() }
+    private lazy var deleteButton: FlatButton = FlatButton("Eliminar", symbol: "trash", style: .plain, tip: "Eliminar esta nota") { [weak self] in self?.deleteEditing() }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -102,11 +102,11 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         table.action = #selector(rowClicked)
         table.doubleAction = #selector(rowDoubleClicked)
         table.selectionHighlightStyle = .regular
-        scroll.documentView = table
-        scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
-        scroll.borderType = .noBorder
-        scroll.scrollerStyle = .overlay
+        scrollView.documentView = table
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.scrollerStyle = .overlay
         empty.alignment = .center; empty.textColor = Theme.muted; empty.font = .systemFont(ofSize: 13)
 
         nameField.font = .systemFont(ofSize: 13); nameField.textColor = Theme.ink
@@ -119,11 +119,11 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         noteScroll.borderType = .noBorder; noteScroll.drawsBackground = true; noteScroll.backgroundColor = Theme.background
         noteScroll.wantsLayer = true; noteScroll.layer?.cornerRadius = 8
         editorCode.font = Theme.mono(13)
-        save.keyEquivalent = "\r"; save.keyEquivalentModifierMask = [.command]
-        cancel.keyEquivalent = "\u{1b}"
+        saveButton.keyEquivalent = "\r"; saveButton.keyEquivalentModifierMask = [.command]
+        cancelButton.keyEquivalent = "\u{1b}"
         editor.isHidden = true
-        for v in [editorTitle, editorCode, nameLabel, nameField, noteLabel, noteScroll, save, cancel, delete] as [NSView] { editor.addSubview(v) }
-        for v in [heading, subtitle, count, add, scroll, empty, hint, cloud, resolve, importButton, exportButton, editor] as [NSView] { addSubview(v) }
+        for v in [editorTitle, editorCode, nameLabel, nameField, noteLabel, noteScroll, saveButton, cancelButton, deleteButton] as [NSView] { editor.addSubview(v) }
+        for v in [heading, subtitle, count, add, scrollView, empty, hint, cloud, resolve, importButton, exportButton, editor] as [NSView] { addSubview(v) }
         refresh(nil)
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -141,7 +141,7 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         cloud.frame = NSRect(x: pad, y: h - 86, width: half, height: 32)
         resolve.frame = NSRect(x: pad + half + 10, y: h - 86, width: half, height: 32)
         hint.frame = NSRect(x: pad, y: h - 112, width: inner, height: 16)
-        scroll.frame = NSRect(x: 0, y: 116, width: w, height: max(40, h - 116 - 120))
+        scrollView.frame = NSRect(x: 0, y: 116, width: w, height: max(40, h - 116 - 120))
         empty.frame = NSRect(x: pad, y: 150, width: inner, height: 90)
         editor.frame = bounds
         editorTitle.frame = NSRect(x: pad, y: 18, width: inner, height: 26)
@@ -151,9 +151,9 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         noteLabel.frame = NSRect(x: pad, y: 138, width: inner, height: 16)
         noteScroll.frame = NSRect(x: pad, y: 158, width: inner, height: max(80, h - 158 - 66))
         let third = (inner - 16) / 3
-        delete.frame = NSRect(x: pad, y: h - 48, width: third, height: 32)
-        cancel.frame = NSRect(x: pad + third + 8, y: h - 48, width: third, height: 32)
-        save.frame = NSRect(x: pad + (third + 8) * 2, y: h - 48, width: third, height: 32)
+        deleteButton.frame = NSRect(x: pad, y: h - 48, width: third, height: 32)
+        cancelButton.frame = NSRect(x: pad + third + 8, y: h - 48, width: third, height: 32)
+        saveButton.frame = NSRect(x: pad + (third + 8) * 2, y: h - 48, width: third, height: 32)
     }
 
     func refresh(_ document: ReviewDocument?) {
@@ -213,9 +213,9 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         editorCode.stringValue = doc.timecode(marker.frame) + "  ·  fotograma \(marker.frame)"
         nameField.stringValue = marker.name
         noteView.string = marker.note
-        delete.isHidden = isNew
+        deleteButton.isHidden = isNew
         editor.isHidden = false
-        for v in [heading, subtitle, count, add, scroll, empty, hint, cloud, resolve, importButton, exportButton] as [NSView] { v.isHidden = true }
+        for v in [heading, subtitle, count, add, scrollView, empty, hint, cloud, resolve, importButton, exportButton] as [NSView] { v.isHidden = true }
         window?.makeFirstResponder(noteView)
         noteView.selectAll(nil)
     }
@@ -242,7 +242,7 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
     private func endEdit() {
         editing = nil
         editor.isHidden = true
-        for v in [heading, subtitle, count, add, scroll, cloud, resolve, importButton, exportButton] as [NSView] { v.isHidden = false }
+        for v in [heading, subtitle, count, add, scrollView, cloud, resolve, importButton, exportButton] as [NSView] { v.isHidden = false }
         refresh(doc)
         onEditingEnded?()
     }
