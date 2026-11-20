@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Builds and tests Prisma for Mac on GitHub's Macs. Run by hand ("Run workflow") with a tag
+# to publish the zip as a pre-release; on every change to mac/ it only builds and tests.
+name: Prisma para Mac
+
+on:
+  push:
+    branches: [main]
+    paths: ["mac/**", "src/prisma_resolve.lua", ".github/workflows/mac.yml"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Etiqueta de la versión de prueba donde publicar el zip (vacío: solo compilar)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Versión de Swift
+        run: swift --version
+      - name: Pruebas
+        working-directory: mac
+        run: swift test
+      - name: Compilar Prisma.app
+        run: bash mac/build-app.sh
+      - name: Guardar el zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prisma-mac
+          path: |
+            mac/build/Prisma-*-mac.zip
+            mac/build/SHA256.txt
+      - name: Publicar versión de prueba
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+              --title "Prisma para Mac · versión de prueba" --notes-file mac/NOTAS-PRUEBA.md
+          fi
+          gh release upload "$TAG" mac/build/Prisma-*-mac.zip --repo "$GITHUB_REPOSITORY" --clobber
