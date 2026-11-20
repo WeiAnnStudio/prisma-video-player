@@ -8,6 +8,8 @@ La versión 0.3 renueva la interfaz oscura: controles vectoriales, tarjetas de r
 
 La versión 0.3.1 añade protecciones de seguridad y privacidad sin cambiar el uso diario. Consulta [Seguridad y privacidad](#seguridad-y-privacidad).
 
+La versión 0.4 está pensada para revisar en equipo: envía las notas a la línea de tiempo abierta en DaVinci Resolve Studio, asocia a cada vídeo una carpeta de Google Drive, Dropbox u OneDrive, y deja que Claude o ChatGPT pasen las notas a esa carpeta. Además, abre cada vídeo nuevo en la misma ventana. Consulta [Revisión en equipo](#revisión-en-equipo).
+
 ## Descargar
 
 En [Releases](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest) hay un .zip listo para usar en Windows 10 u 11 de 64 bits. Descomprímelo en una carpeta propia, por ejemplo `Documentos\Prisma`, y abre `Prisma.exe`. Antes de abrirlo, puedes comprobar que el .zip es el publicado: en PowerShell, `Get-FileHash .\Prisma-*.zip` debe dar la huella SHA-256 que aparece en la versión.
@@ -35,6 +37,13 @@ Para compilar en otra carpeta mientras el reproductor está abierto, añade `-Ou
 - `src/PlayerForm.Review.cs`: J/K/L, fotogramas, resumen, notas y guardado automático.
 - `src/Markers.cs`: modelo de notas, tasa racional, importación/exportación XMEML, JSON y CSV.
 - `src/MarkerPanel.cs`: editor de notas integrado.
+- `src/ResolveBridge.cs` y `src/prisma_resolve.lua`: envío de notas a DaVinci Resolve Studio mediante su propio `fuscript.exe`.
+- `src/McpServer.cs`: servidor MCP de solo lectura (`Prisma.exe --mcp`) para Claude y ChatGPT.
+- `src/AiConnect.cs`: registro de Prisma en la configuración de Claude y ChatGPT de escritorio.
+- `src/CloudFolder.cs`: validación de carpetas de Google Drive, Dropbox y OneDrive.
+- `src/SyncDelivery.cs`: entrega automática del .docx y el .prisma.json en una carpeta sincronizada.
+- `src/SingleInstance.cs`: una sola ventana; los vídeos abiertos desde el Explorador llegan a ella.
+- `src/Dialogs.cs`: diálogos de la interfaz.
 - `Prisma/LEEME.txt`: guía de usuario y límites verificados.
 
 ## Validación
@@ -42,6 +51,8 @@ Para compilar en otra carpeta mientras el reproductor está abierto, añade `-Ou
 Compila Prisma primero y después ejecuta `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\prepare-tests.ps1` para descargar FFmpeg con huella fijada. Ejecuta `python .\tests\generate-fixtures.py` (Python 3) para generar los clips sintéticos.
 `tests/run-tests.ps1` comprueba códecs, reproducción, pausa, búsqueda, final, listas, recuperación y preferencias. También comprueba que una lista M3U, un EDL o un manifiesto HLS no abren conexiones de red ni otros archivos.
 `tests/run-review-tests.ps1` prueba la interfaz real: un fotograma por flecha, retroceso, pausa, velocidad, resumen, notas y tamaño de ventana. También valida XML/JSON/CSV, UTF-8, FPS fraccionarios, fórmulas neutralizadas en CSV y JSON sin rutas completas.
+`tests/run-review-tests.ps1` comprueba además la carpeta en la nube, el servidor MCP (también `Prisma.exe --mcp` real), la conexión con Claude y ChatGPT y el formato de envío a Resolve.
+`tests/run-resolve-tests.ps1` ejecuta el script de Resolve con el `fuscript.exe` de DaVinci contra una línea de tiempo simulada: FPS, duplicados, fotogramas ocupados y notas fuera de rango.
 `tests/RenderTests.cs` prueba la salida Direct3D 11/gpu-next con aceleración automática y fallback por CPU.
 `tests/DesignPreview.cs` ofrece una vista manual con notas de ejemplo y datos aislados: F6 alterna tamaño normal/compacto y F7 abre/cierra el editor.
 
@@ -58,6 +69,23 @@ La importación del XML generado por las pruebas se verificó en DaVinci Resolve
 - Los tiempos exportados usan fotogramas enteros y tasa racional; se presupone material CFR. El tiempo de origen es cero del render y el timecode de presentación es NDF.
 - JSON conserva notas para intercambio completo. Resolve puede omitirlas al exportar XML FCP 7.
 
+## Revisión en equipo
+
+**Enviar a DaVinci Resolve (Ctrl+Mayús+R).** Añade las notas como marcadores rojos a la línea de tiempo abierta en Resolve, sin crear otra. Requiere DaVinci Resolve Studio con Preferencias > Sistema > General > Scripting externo (External scripting using) en **Local**. Los FPS de la línea de tiempo deben coincidir con los del vídeo, o no se importa nada. Enviar dos veces no duplica marcadores. Si un fotograma ya tiene un marcador, la nota pasa al siguiente fotograma libre. Las posiciones se cuentan desde el primer fotograma de la línea de tiempo, así que el render revisado debe empezar al principio de la línea de tiempo. Resolve gratuito no permite que otras aplicaciones lo controlen. En ese caso, Prisma lo detecta y ofrece exportar el XML, con los pasos para importarlo como línea de tiempo.
+
+**Carpeta en la nube.** Cada vídeo recuerda su carpeta, que se elige con el botón del panel de notas o desde Revisión > Carpeta en la nube. Hay dos formas:
+
+- **Automática, sin IA.** Eliges una carpeta que Google Drive para escritorio, Dropbox u OneDrive sincronizan en tu PC, por ejemplo `G:\Mi unidad\Revisiones`. Cada vez que cambian las notas, Prisma escribe ahí «Ajustes Corto 12.docx» (título en negrita y una viñeta por nota) y «Corto 12.prisma.json», y la aplicación de la nube los sube. Si alguien editó el documento en la nube, Prisma conserva su versión con otro nombre antes de escribir la nueva. Si las notas no cambian, no reescribe nada.
+- **Con IA.** Pegas el enlace de una carpeta de Google Drive, Dropbox u OneDrive y se lo pides a Claude o ChatGPT, como se explica a continuación. Así se obtiene un Google Doc nativo.
+
+En ninguno de los dos casos Prisma se conecta a la nube.
+
+**Pasar las notas con IA.** En el menú IA > Conectar con Claude o con ChatGPT, Prisma se registra en la app de escritorio como servidor MCP local y de solo lectura. No pide contraseñas ni claves: la app inicia `Prisma.exe --mcp` en tu equipo cuando necesita las notas, y no hace falta tener Prisma abierto. Después basta con pedir «Pasa a la nube las notas de Corto 12». La IA crea en la carpeta del vídeo el documento «Ajustes Corto 12», con una línea por nota y su código de tiempo, y el archivo `Corto 12.prisma.json`. Lo hace con el conector de Google Drive, Dropbox u OneDrive que tengas activado en esa app. En cuentas de empresa, el administrador puede tener desactivados los servidores locales.
+
+**Recibir las notas en otro equipo.** El editor descarga `Corto 12.prisma.json` de la carpeta y, con el mismo render abierto en su Prisma, pulsa Importar. Desde ahí puede enviarlas a su Resolve. Prisma exige que coincidan los FPS y que las notas quepan en la duración del vídeo.
+
+**Una sola ventana.** Al abrir otro vídeo desde el Explorador, se reproduce en la ventana que ya está abierta y sustituye al anterior. Si abres varios a la vez, o en menos de dos segundos, forman una lista de reproducción, igual que con Archivo > Añadir a la lista (Ctrl+Mayús+O).
+
 ## Seguridad y privacidad
 
 Prisma no se conecta a internet, no envía datos de uso y no contiene servidores ni telemetría. La única descarga ocurre al compilar: `build.ps1` obtiene libmpv de una URL fija y rechaza el archivo si su SHA-256 no coincide con el publicado. Además, comprueba la huella de `libmpv-2.dll` antes de copiarla.
@@ -70,6 +98,10 @@ Protecciones en el reproductor:
 - Windows deja de buscar DLL en la carpeta actual. Así, un DLL colocado junto a un vídeo no se carga al abrirlo. Si Prisma se ejecuta desde un disco local, tampoco se cargan DLL desde carpetas de red.
 - El XML de notas no resuelve entidades externas. Además, los documentos importados tienen límites de tamaño, número de notas y longitud de texto.
 - En CSV, las notas que empiezan por `=`, `+`, `-` o `@` llevan un apóstrofo delante para que Excel no las ejecute como fórmulas.
+- El servidor MCP solo lee las notas guardadas: no escribe, no abre conexiones de red y no revela rutas del equipo, solo nombres de archivo. Se comunica con la app que lo inicia por la entrada y salida estándar, sin puertos.
+- Para enviar notas a Resolve, Prisma ejecuta el `fuscript.exe` de la carpeta de instalación de DaVinci Resolve con un script fijo incluido en Prisma. El texto de las notas viaja en un archivo de datos y nunca se ejecuta.
+- La comunicación entre dos ventanas de Prisma usa una tubería con nombre que solo puede abrir tu usuario de Windows. Las rutas recibidas pasan las mismas comprobaciones que el diálogo Abrir.
+- Las carpetas en la nube solo se aceptan si son enlaces https de Google Drive, Dropbox u OneDrive. Conectar con Claude o ChatGPT modifica su archivo de configuración y guarda antes una copia del original.
 - El JSON exportado solo incluye el nombre del vídeo, no la ruta completa. Para que DaVinci o Premiere enlacen el vídeo, el XML sí incluye la ruta completa, que puede mostrar el usuario de Windows y la estructura de carpetas.
 
 Datos locales: `Prisma/datos/` guarda preferencias, recientes y notas, con las rutas de tus vídeos. Git ignora esa carpeta. No la incluyas si compartes una copia de Prisma. Para vaciar la lista, usa Archivo > Archivos recientes > Borrar lista de recientes.

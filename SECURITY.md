@@ -25,6 +25,9 @@ Entran en el alcance los fallos de Prisma, como su código, los scripts de compi
 - La búsqueda de DLL de Windows excluye la carpeta actual. Si Prisma se ejecuta desde un disco local, tampoco carga DLL desde carpetas de red.
 - La importación XML no resuelve entidades externas y limita tamaño, número de notas y longitud.
 - La exportación CSV neutraliza fórmulas. La exportación JSON no incluye rutas completas.
+- El servidor MCP (`Prisma.exe --mcp`) solo lee las notas guardadas, se comunica por la entrada y salida estándar sin abrir puertos y no revela rutas del equipo.
+- El envío a DaVinci Resolve ejecuta el `fuscript.exe` de la instalación de Resolve con un script fijo. Las notas viajan como datos y nunca como código.
+- La comunicación entre ventanas de Prisma usa una tubería con nombre que solo puede abrir el usuario de Windows que la creó.
 - La compilación descarga el motor de una URL fija y verifica la huella SHA-256 del archivo y de `libmpv-2.dll`.
 
 Prisma no está firmado digitalmente. Para usarlo con garantías, compílalo desde este repositorio.

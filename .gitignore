@@ -59,3 +59,7 @@ $RECYCLE.BIN/
 *.user
 *.suo
 _respaldo*/
+tests/*.tmp
+tests/mcp/
+tests/resolve-lua.txt
+_subir*/
