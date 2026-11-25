@@ -71,42 +71,36 @@ extension PlayerWindowController {
 
     // MARK: Cloud folder
 
+    // The only way notes leave this Mac: a folder that Google Drive for desktop (or Dropbox,
+    // OneDrive) keeps in sync. Prisma writes the .docx and the .prisma.json there.
     func editCloudFolder() {
         guard let review else { notice("Abre un vídeo para asociarle una carpeta."); return }
         notesPanel.commitEdit()
         let video = review.mediaPath.portableFileNameForUI
-        var typed = review.cloudFolder, problem = ""
+        var problem = ""
         while true {
-            let body = problem + "Dónde quieres las notas de «\(review.mediaPath.portableFileName)»:\n\n" +
-                "AUTOMÁTICO · Carpeta del Mac: elige una carpeta que Google Drive, Dropbox u OneDrive sincronicen en este Mac. Cada vez que cambies una nota, Prisma escribe ahí «Ajustes \(video).docx» y «\(video).prisma.json», y la aplicación de la nube los sube. Sin IA y sin pedir nada.\n" +
+            let body = problem + "Elige la carpeta de Google Drive donde quieres las notas de «\(review.mediaPath.portableFileName)», dentro de Google Drive en el Finder (Mi unidad o Unidades compartidas). Google Drive para escritorio la mantiene sincronizada.\n\n" +
+                "Cada vez que cambies una nota, Prisma escribe ahí «Ajustes \(video).docx», con una casilla por nota, y «\(video).prisma.json», y Google Drive los sube. También sirve una carpeta de Dropbox u OneDrive.\n\n" +
                 "Ahora: \(review.syncFolder.isEmpty ? "ninguna" : review.syncFolder)\n\n" +
-                "CON IA · Enlace: pega abajo el enlace de una carpeta de Google Drive, Dropbox u OneDrive y pide a Claude o ChatGPT «Pasa a la nube las notas de \(video)». Crea un Google Doc nativo.\n\n" +
-                "Prisma no se conecta a la nube en ningún caso: solo guarda la carpeta o el enlace junto a las notas."
-            let field = Dialogs.field(typed)
-            var buttons = ["Guardar enlace", "Elegir carpeta del Mac…", "Cancelar"]
-            if !review.syncFolder.isEmpty || !review.cloudFolder.isEmpty { buttons.append("Quitar todo") }
-            let choice = Dialogs.ask("Carpeta en la nube", body, buttons: buttons, accessory: field)
-            typed = field.stringValue
-            if choice == 2 { return }
-            if choice == 3 { review.cloudFolder = ""; review.syncFolder = ""; review.syncHash = ""; break }
-            if choice == 1 {
-                let panel = NSOpenPanel()
-                panel.title = "Carpeta sincronizada para las notas"
-                panel.message = "Elige una carpeta que Google Drive, Dropbox u OneDrive sincronicen en este Mac."
-                panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
-                panel.prompt = "Usar esta carpeta"
-                let start = review.syncFolder.isEmpty ? SyncDelivery.suggestedStart() : review.syncFolder
-                if !start.isEmpty { panel.directoryURL = URL(fileURLWithPath: start, isDirectory: true) }
-                guard panel.runModal() == .OK, let url = panel.url else { continue }
-                if !SyncDelivery.isValidFolder(url.path) { problem = "Esa carpeta no sirve. Elige una carpeta, no la raíz de un disco.\n\n"; continue }
-                if review.syncFolder != url.path { review.syncHash = "" }
-                review.syncFolder = url.path
-                if review.markers.isEmpty { notice("Carpeta guardada. Prisma escribirá ahí en cuanto añadas la primera nota.") }
-                break
-            }
-            if typed.trimmingCharacters(in: .whitespaces).isEmpty { review.cloudFolder = ""; break }
-            if let normalized = CloudFolder.normalize(typed) { review.cloudFolder = normalized.url; break }
-            problem = "Ese enlace no es una carpeta de Google Drive, Dropbox ni OneDrive. Copia la dirección completa desde el navegador, por ejemplo https://drive.google.com/drive/folders/…\n\n"
+                "Prisma no se conecta a internet: solo escribe en esa carpeta de tu Mac."
+            var buttons = ["Elegir carpeta…", "Cancelar"]
+            if !review.syncFolder.isEmpty { buttons.append("Quitar carpeta") }
+            let choice = Dialogs.ask("Carpeta de Google Drive", body, buttons: buttons)
+            if choice == 1 { return }
+            if choice == 2 { review.syncFolder = ""; review.syncHash = ""; break }
+            let panel = NSOpenPanel()
+            panel.title = "Carpeta de Google Drive para las notas"
+            panel.message = "Elige una carpeta que Google Drive (o Dropbox, OneDrive) sincronice en este Mac."
+            panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
+            panel.prompt = "Usar esta carpeta"
+            let start = review.syncFolder.isEmpty ? SyncDelivery.suggestedStart() : review.syncFolder
+            if !start.isEmpty { panel.directoryURL = URL(fileURLWithPath: start, isDirectory: true) }
+            guard panel.runModal() == .OK, let url = panel.url else { continue }
+            if !SyncDelivery.isValidFolder(url.path) { problem = "Esa carpeta no sirve. Elige una carpeta, no la raíz de un disco.\n\n"; continue }
+            if review.syncFolder != url.path { review.syncHash = "" }
+            review.syncFolder = url.path
+            if review.markers.isEmpty { notice("Carpeta guardada. Prisma escribirá ahí en cuanto añadas la primera nota.") }
+            break
         }
         saveReview()
         notesPanel.setCloud(SyncDelivery.label(review))
@@ -182,51 +176,13 @@ extension PlayerWindowController {
         }
     }
 
-    // MARK: Claude / ChatGPT
-
-    func connectAssistant(claude: Bool) {
-        let app = claude ? "Claude" : "ChatGPT"
-        guard let exe = Bundle.main.executablePath else { return }
-        if exe.contains("/AppTranslocation/") || exe.hasPrefix("/Volumes/") {
-            Dialogs.ask("Conectar con \(app)", "Antes de conectar, mueve Prisma a la carpeta Aplicaciones y ábrelo desde ahí. Ahora macOS lo está ejecutando desde una ubicación temporal, y \(app) no podría encontrarlo después.", buttons: ["Entendido"], warning: true)
-            return
-        }
-        let file = claude ? AiConnect.claudeConfigFile : AiConnect.chatGptConfigFile
-        let body = "Prisma se añadirá a \(app) como herramienta local de solo lectura. \(app) abrirá Prisma en segundo plano cuando necesite tus notas; no hace falta tener Prisma abierto ni ejecutar nada más.\n\n" +
-            "No tienes que escribir contraseñas ni claves: la conexión ocurre dentro de tu Mac. Para guardar el documento en Google Drive, Dropbox u OneDrive, \(app) usa el conector de ese servicio que ya tengas activado en la propia app.\n\n" +
-            "Se modificará este archivo de configuración (se guarda una copia del original):\n\(file.path)\n\nSi mueves Prisma a otra carpeta, vuelve a conectar."
-        if Dialogs.ask("Conectar con \(app)", body, buttons: ["Conectar", "Cancelar"]) != 0 { return }
-        do {
-            let current = AiConnect.readOrEmpty(file)
-            let merged: String
-            if claude { merged = try AiConnect.mergeClaudeConfig(current, executable: exe) } else { merged = AiConnect.mergeChatGptConfig(current, executable: exe) }
-            try AiConnect.writeWithBackup(file, merged)
-        } catch {
-            Dialogs.ask("Conectar con \(app)", "No se pudo modificar la configuración de \(app): \(error.localizedDescription)\n\nPuedes añadir el servidor a mano: nombre «prisma», tipo STDIO, comando:\n\(exe)\ncon el argumento --mcp", buttons: ["Cerrar"], warning: true)
-            return
-        }
-        Dialogs.message("Conectado con \(app)", "Listo. Cierra \(app) por completo (⌘Q) y vuelve a abrirlo.\n\n" +
-            "Después, en un chat nuevo, pide por ejemplo: «Pasa a la nube las notas de Corto 12». \(app) leerá las notas de Prisma y creará el documento «Ajustes Corto 12» en la carpeta que asociaste al vídeo.\n\n" +
-            (claude ? "" : "En cuentas de empresa, el administrador puede tener desactivados los servidores locales. Si Prisma no aparece en Ajustes > MCP servers, consúltalo con él.\n\n") +
-            "Asegúrate de tener activado en \(app) el conector de Google Drive, Dropbox u OneDrive, según dónde esté la carpeta.")
-    }
-
-    func showAssistantHelp() {
-        Dialogs.text("Notas en la nube con IA",
-            "1. En el panel de notas, pulsa «Carpeta en la nube» y pega el enlace de la carpeta de Google Drive, Dropbox u OneDrive para ese vídeo. Es el único paso manual.\n\n" +
-            "2. Una sola vez: menú IA > Conectar con Claude o con ChatGPT, y reinicia esa app. No pide contraseñas: la app abre Prisma en segundo plano en tu Mac.\n\n" +
-            "3. En esa app, activa el conector del servicio donde está la carpeta (Google Drive, Dropbox u OneDrive).\n\n" +
-            "4. Pide en un chat: «Pasa a la nube las notas de <nombre del vídeo>». La IA crea el documento «Ajustes <vídeo>» con el título en negrita y una línea por nota con su código de tiempo. Si el documento ya existe, añade solo lo nuevo.\n\n" +
-            "Qué ve la IA: el nombre del archivo (nunca la ruta de tu Mac), los FPS, la carpeta asociada y el texto de las notas. Prisma no puede borrar ni cambiar nada desde la IA.")
-    }
-
     // MARK: Information
 
     func showInfo() {
         guard let url = player.currentItem.flatMap({ ($0.asset as? AVURLAsset)?.url }) else { notice("Abre un vídeo para consultar su información."); return }
         var d = "ARCHIVO\n\(url.path)\n\n"
         d += "Vídeo: \(info.codec.isEmpty ? "No indicado" : info.codec) (\(info.fourCC))\nResolución: \(info.width) × \(info.height)\n"
-        d += "Profundidad del archivo: \(info.bits.isEmpty ? "No indicada" : info.bits + " bits")\n"
+        d += "Profundidad de color: \(info.depthLabel.isEmpty ? "No indicada" : info.depthLabel)\n"
         d += "Fotogramas por segundo: \(String(format: "%.3f", info.fps))\n"
         d += "Primarias: \(MediaInfo.readable(info.primaries))\nTransferencia: \(MediaInfo.readable(info.transfer))\nMatriz: \(MediaInfo.readable(info.matrix))\n"
         d += "Rango dinámico: \(info.isHDR ? "HDR" : "SDR")\n"
@@ -242,12 +198,14 @@ extension PlayerWindowController {
         Dialogs.text("Atajos de teclado",
             "⌘O   Abrir uno o varios vídeos\n⇧⌘O   Añadir a la lista\nEspacio   Reproducir / pausar\n← / →   Fotograma anterior / siguiente\n, / .   Fotograma anterior / siguiente\n⇧← / ⇧→   Retroceder / avanzar 5 segundos\n" +
             "J / K / L   Retroceder / pausar / avanzar\nRepite J o L para acelerar hasta 16×; la tecla contraria frena.\n⇧J / ⇧L   Revisión a media velocidad\nI   Resumen sobre el vídeo\n⌘I   Información completa\n" +
-            "M   Añadir nota en este fotograma\nN   Mostrar notas\n⌘↩   Guardar nota en edición\nEsc   Cancelar edición / salir de pantalla completa\n↑ / ↓   Volumen\n⇧⌘M   Silenciar\nInicio   Volver al principio\nS   Detener\nF   Pantalla completa\n⇧⌘R   Enviar notas a DaVinci Resolve\n\n" +
+            "M   Añadir nota en este fotograma\nN   Mostrar notas\n⌘↩   Guardar nota en edición\n⌘T   (editando una nota) Insertar el código de tiempo actual\nEsc   Cancelar edición / salir de pantalla completa\n↑ / ↓   Volumen\n⇧⌘M   Silenciar\nInicio   Volver al principio\nS   Detener\nF   Pantalla completa\n⇧⌘R   Enviar notas a DaVinci Resolve\n\n" +
+            "⌘+ / ⌘−   Acercar / alejar la imagen (también rueda del ratón o pellizco sobre el vídeo)\n⌘0   Ajustar la imagen a la ventana\n⌘1   Imagen al 100 % (píxel a píxel)\nArrastrar   Mover la imagen ampliada\n" +
+            "Clic en el código de tiempo   Copiarlo (⌘C) o escribir otro y pulsar ↩ para ir\n⌘G   Ir a un código de tiempo (00:00:03:10, 3:10, 310, +10)\n⇧⌘C   Copiar el código de tiempo\n\n" +
             "Doble clic sobre el vídeo: pantalla completa.")
     }
 
     func showAbout() {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.4"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.5"
         Dialogs.text("Acerca de Prisma",
             "PRISMA  ·  Versión \(version) para Mac\nReproductor y revisor de vídeo, en español.\n\n" +
             "Prisma no se conecta a internet ni envía datos. Solo abre los archivos que eliges tú.\n\n" +

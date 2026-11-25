@@ -5,7 +5,7 @@ import CoreMedia
 
 // What Prisma knows about the open file, read once from AVFoundation.
 struct MediaInfo {
-    var codec = "", fourCC = "", bits = "", primaries = "", transfer = "", matrix = ""
+    var codec = "", fourCC = "", depthLabel = "", primaries = "", transfer = "", matrix = ""
     var width = 0, height = 0
     var fps: Double = 0
     var duration: Double = 0
@@ -25,8 +25,8 @@ struct MediaInfo {
                 info.fourCC = fourCharacterCode(sub)
                 info.codec = codecName(info.fourCC)
                 let ext = { (key: CFString) -> Any? in CMFormatDescriptionGetExtension(format, extensionKey: key) }
-                if let n = ext(kCMFormatDescriptionExtension_BitsPerComponent) as? NSNumber { info.bits = n.stringValue }
-                else { info.bits = defaultBits(info.fourCC) }
+                let depth = ext(kCMFormatDescriptionExtension_BitsPerComponent) as? NSNumber
+                info.depthLabel = colorDepthLabel(info.fourCC, reported: depth?.intValue)
                 info.primaries = ext(kCMFormatDescriptionExtension_ColorPrimaries) as? String ?? ""
                 info.transfer = ext(kCMFormatDescriptionExtension_TransferFunction) as? String ?? ""
                 info.matrix = ext(kCMFormatDescriptionExtension_YCbCrMatrix) as? String ?? ""
@@ -72,12 +72,16 @@ struct MediaInfo {
         }
     }
 
-    static func defaultBits(_ code: String) -> String {
+    static func colorDepthLabel(_ code: String, reported: Int?) -> String {
+        // Core Media can report 12 even for a 10-bit ProRes 422 HQ source.
+        // Describe the nominal 422 profile explicitly, not the decoder's component width.
         switch code {
-        case "apco", "apcs", "apcn", "apch": return "10"
-        case "ap4h", "ap4x": return "12"
-        default: return ""
+        case "apco", "apcs", "apcn", "apch": return "10 bits (perfil)"
+        default: break
         }
+        if let reported, reported > 0 { return "\(reported) bits" }
+        if code == "ap4h" || code == "ap4x" { return "hasta 12 bits (perfil)" }
+        return ""
     }
 
     static func readable(_ value: String) -> String {

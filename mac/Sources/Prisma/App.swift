@@ -139,20 +139,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Exportar CSV…") { c.export(kind: "csv") },
             .separator(),
             item("Enviar notas a DaVinci Resolve", "r", [.command, .shift]) { c.sendToResolve() },
-            item("Carpeta en la nube para este vídeo…") { c.editCloudFolder() },
-        ]))
-
-        main.addItem(submenu("IA", [
-            item("Conectar con Claude (app de escritorio)…") { c.connectAssistant(claude: true) },
-            item("Conectar con ChatGPT (app de escritorio)…") { c.connectAssistant(claude: false) },
             .separator(),
-            item("Cómo pasar las notas a la nube con IA") { c.showAssistantHelp() },
+            item("Ir a un código de tiempo…", "g") { c.beginTimecodeEdit() },
+            item("Copiar código de tiempo", "c", [.command, .shift]) { c.copyTimecode() },
+            item("Carpeta de Google Drive para este vídeo…") { c.editCloudFolder() },
         ]))
 
         main.addItem(submenu("Visualización", [
             item("Resumen sobre el vídeo    I") { c.toggleSummary() },
             item("Información del vídeo", "i") { c.showInfo() },
             item("Pantalla completa", "f", [.command, .control]) { c.toggleFullscreen() },
+            .separator(),
+            item("Acercar la imagen", "+") { c.zoomStep(1) },
+            item("Alejar la imagen", "-") { c.zoomStep(-1) },
+            item("Ajustar la imagen a la ventana", "0") { c.fitVideo() },
+            item("Imagen al 100 % (píxel a píxel)", "1") { c.zoom(to: 1) },
         ]))
 
         let window = submenu("Ventana", [
@@ -164,7 +165,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         main.addItem(submenu("Ayuda", [
             item("Atajos de teclado") { c.showShortcuts() },
-            item("Cómo pasar las notas a la nube con IA") { c.showAssistantHelp() },
         ]))
         return main
     }

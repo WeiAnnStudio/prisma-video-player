@@ -52,6 +52,8 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
     var onChanged: (() -> Void)?
     var onJump: ((ReviewMarker) -> Void)?
     var onEditingEnded: (() -> Void)?
+    /// Timecode where the player is now, for "+ TC actual" (⌘T) in the editor.
+    var currentTimecode: (() -> String)?
 
     private(set) var doc: ReviewDocument?
     private var sorted: [ReviewMarker] = []
@@ -66,7 +68,7 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
     private let scrollView = NSScrollView()
     private let empty = NSTextField(wrappingLabelWithString: "")
     private let hint = Theme.label("Clic: ir a la nota · Doble clic: editar", size: 11, color: Theme.muted)
-    private lazy var cloud: FlatButton = FlatButton("Carpeta en la nube", symbol: "folder", style: .outlined, tip: "Carpeta en la nube para las notas de este vídeo") { [weak self] in self?.onCloud?() }
+    private lazy var cloud: FlatButton = FlatButton("Carpeta de Drive", symbol: "folder", style: .outlined, tip: "Carpeta de Google Drive sincronizada para las notas de este vídeo") { [weak self] in self?.onCloud?() }
     private lazy var resolve: FlatButton = FlatButton("Enviar a Resolve", symbol: "paperplane", style: .outlined, tip: "Enviar las notas a la línea de tiempo abierta en DaVinci Resolve (⇧⌘R)") { [weak self] in self?.onResolve?() }
     private lazy var importButton: FlatButton = FlatButton("Importar", symbol: "square.and.arrow.down", style: .outlined, tip: "Importar notas (XML / JSON)") { [weak self] in self?.onImport?() }
     private lazy var exportButton: FlatButton = FlatButton("Exportar", symbol: "square.and.arrow.up", style: .outlined, tip: "Exportar notas (XML / JSON / CSV)") { [weak self] in
@@ -85,6 +87,7 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
     private var noteView: NSTextView { noteScroll.documentView as! NSTextView }
     private lazy var saveButton: FlatButton = FlatButton("Guardar", symbol: "checkmark", style: .accent, tip: "Guardar nota (⌘↩)") { [weak self] in self?.commitEdit() }
     private lazy var cancelButton: FlatButton = FlatButton("Cancelar", style: .outlined, tip: "Cancelar (Esc)") { [weak self] in self?.cancelEdit() }
+    private lazy var insertCode: FlatButton = FlatButton("+ TC actual", style: .outlined, tip: "Insertar en la nota el código de tiempo actual del reproductor (⌘T)") { [weak self] in self?.insertTimecode() }
     private lazy var deleteButton: FlatButton = FlatButton("Eliminar", symbol: "trash", style: .plain, tip: "Eliminar esta nota") { [weak self] in self?.deleteEditing() }
 
     override init(frame: NSRect) {
@@ -121,8 +124,9 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         editorCode.font = Theme.mono(13)
         saveButton.keyEquivalent = "\r"; saveButton.keyEquivalentModifierMask = [.command]
         cancelButton.keyEquivalent = "\u{1b}"
+        insertCode.keyEquivalent = "t"; insertCode.keyEquivalentModifierMask = [.command]
         editor.isHidden = true
-        for v in [editorTitle, editorCode, nameLabel, nameField, noteLabel, noteScroll, saveButton, cancelButton, deleteButton] as [NSView] { editor.addSubview(v) }
+        for v in [editorTitle, editorCode, nameLabel, nameField, noteLabel, insertCode, noteScroll, saveButton, cancelButton, deleteButton] as [NSView] { editor.addSubview(v) }
         for v in [heading, subtitle, count, add, scrollView, empty, hint, cloud, resolve, importButton, exportButton, editor] as [NSView] { addSubview(v) }
         refresh(nil)
     }
@@ -148,7 +152,8 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         editorCode.frame = NSRect(x: pad, y: 48, width: inner, height: 18)
         nameLabel.frame = NSRect(x: pad, y: 80, width: inner, height: 16)
         nameField.frame = NSRect(x: pad, y: 100, width: inner, height: 26)
-        noteLabel.frame = NSRect(x: pad, y: 138, width: inner, height: 16)
+        noteLabel.frame = NSRect(x: pad, y: 138, width: max(0, inner - 112), height: 16)
+        insertCode.frame = NSRect(x: pad + inner - 104, y: 131, width: 104, height: 24)
         noteScroll.frame = NSRect(x: pad, y: 158, width: inner, height: max(80, h - 158 - 66))
         let third = (inner - 16) / 3
         deleteButton.frame = NSRect(x: pad, y: h - 48, width: third, height: 32)
@@ -170,7 +175,7 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
     }
 
     func setCloud(_ service: String) {
-        cloud.setLabel(service.isEmpty ? "Carpeta en la nube" : service)
+        cloud.setLabel(service.isEmpty ? "Carpeta de Drive" : service)
         cloud.active = !service.isEmpty
     }
 
@@ -237,6 +242,24 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         doc.markers.removeAll { $0 === marker }
         endEdit()
         onChanged?()
+    }
+
+    // Writes the player's current timecode where the cursor is in the note (at the end while
+    // the whole note is still selected), so a note can say "move this cut to 00:00:03:10".
+    private func insertTimecode() {
+        guard editing != nil, var code = currentTimecode?(), !code.isEmpty else { return }
+        let text = noteView.string as NSString
+        var range = noteView.selectedRange()
+        if range.location == NSNotFound || range.location > text.length || (range.length == text.length && text.length > 0) {
+            range = NSRange(location: text.length, length: 0)
+        }
+        if range.location > 0, range.length == 0 {
+            let previous = text.substring(with: NSRange(location: range.location - 1, length: 1))
+            if previous.rangeOfCharacter(from: .whitespacesAndNewlines) == nil { code = " " + code }
+        }
+        window?.makeFirstResponder(noteView)
+        noteView.setSelectedRange(range)
+        noteView.insertText(code + " ", replacementRange: range)
     }
 
     private func endEdit() {

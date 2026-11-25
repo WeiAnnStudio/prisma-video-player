@@ -9,12 +9,15 @@ import PrismaCore
 final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenuDelegate {
     let root = RootView(frame: NSRect(x: 0, y: 0, width: 1280, height: 760))
     let videoView = VideoView()
+    lazy var stage = VideoStage(video: videoView)
     let player = AVPlayer()
     let notesPanel = NotesPanel(frame: .zero)
     let summary = OverlayLabel(frame: .zero)
     private let bar = FlippedView()
     private let seekBar = SeekBar()
-    private let timeLabel = Theme.label("--:--:--:--", size: 13)
+    private let timeLabel = Theme.label("", size: 13)
+    private let timecodeField = TimecodeField(code: "--:--:--:--")
+    private lazy var zoomButton: FlatButton = FlatButton("Ajustar", symbol: "plus.magnifyingglass", style: .outlined, tip: "Tamaño de la imagen · Rueda o pellizco sobre el vídeo, ⌘+ / ⌘− · ⌘0 ajustar · ⌘1 al 100 %") { [weak self] in self?.showZoomMenu() }
     private let noticeLabel = Theme.label("", size: 12, color: Theme.muted)
     private let volume = NSSlider(value: 1, minValue: 0, maxValue: 1, target: nil, action: nil)
     private lazy var openButton: FlatButton = FlatButton("Abrir", symbol: "folder", style: .outlined, tip: "Abrir vídeos (⌘O)") { [weak self] in self?.chooseFiles(append: false) }
@@ -67,8 +70,23 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         videoView.controlsStyle = .none
         videoView.wantsLayer = true
         videoView.layer?.backgroundColor = Theme.video.cgColor
-        videoView.onDoubleClick = { [weak self] in self?.toggleFullscreen() }
-        videoView.onClick = { [weak self] in self?.window?.makeFirstResponder(self?.root) }
+        stage.onDoubleClick = { [weak self] in self?.toggleFullscreen() }
+        stage.onClick = { [weak self] in self?.window?.makeFirstResponder(self?.root) }
+        stage.onZoomChanged = { [weak self] label in
+            guard let self, self.zoomButton.title != label else { return }
+            self.zoomButton.setLabel(label)
+        }
+        timecodeField.canEdit = { [weak self] in self?.review != nil }
+        timecodeField.onCommit = { [weak self] text in self?.commitTimecode(text) }
+        timecodeField.onCancel = { [weak self] in self?.endTimecodeEdit() }
+        let tcMenu = NSMenu()
+        tcMenu.addItem(BlockMenuItem(title: "Copiar código de tiempo", keyEquivalent: "") { [weak self] in self?.copyTimecode() })
+        tcMenu.addItem(BlockMenuItem(title: "Ir a un código de tiempo…", keyEquivalent: "") { [weak self] in self?.beginTimecodeEdit() })
+        timecodeField.menu = tcMenu
+        notesPanel.currentTimecode = { [weak self] in
+            guard let self, let review = self.review else { return "" }
+            return review.timecode(self.currentFrame)
+        }
         player.actionAtItemEnd = .pause
         player.preventsDisplaySleepDuringVideoPlayback = true
         let saved = UserDefaults.standard.object(forKey: "volumen") as? Double ?? 1
@@ -81,8 +99,8 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         bar.fill = Theme.panel
         seekBar.onSeek = { [weak self] fraction, final in self?.seek(fraction: fraction, exact: final) }
         summary.isHidden = true
-        for v in [seekBar, openButton, backButton, playButton, forwardButton, timeLabel, noticeLabel, speaker, volume, notesButton, infoButton] as [NSView] { bar.addSubview(v) }
-        for v in [videoView, summary, bar, notesPanel] as [NSView] { root.addSubview(v) }
+        for v in [seekBar, openButton, backButton, playButton, forwardButton, timecodeField, timeLabel, noticeLabel, speaker, volume, zoomButton, notesButton, infoButton] as [NSView] { bar.addSubview(v) }
+        for v in [stage, summary, bar, notesPanel] as [NSView] { root.addSubview(v) }
         root.onLayout = { [weak self] in self?.layoutPlayer() }
         root.onKey = { [weak self] event in self?.handleKey(event) ?? false }
         root.onDrop = { [weak self] urls in self?.open(urls, append: false) }
@@ -109,34 +127,41 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
     func layoutPlayer() {
         let b = root.bounds
-        let barHeight: CGFloat = 92
         let panel: CGFloat = notesShown ? min(400, max(320, b.width * 0.3)) : 0
         let left = b.width - panel
-        videoView.frame = NSRect(x: 0, y: 0, width: left, height: b.height - barHeight)
+        let compact = left < 920
+        let barHeight: CGFloat = compact ? 120 : 92
+        stage.frame = NSRect(x: 0, y: 0, width: left, height: b.height - barHeight)
         bar.frame = NSRect(x: 0, y: b.height - barHeight, width: left, height: barHeight)
         notesPanel.frame = NSRect(x: left, y: 0, width: panel, height: b.height)
         notesPanel.isHidden = !notesShown
         let w = bar.bounds.width
-        seekBar.frame = NSRect(x: 18, y: 10, width: w - 36, height: 24)
+        let noticeWidth = noticeLabel.stringValue.isEmpty ? 0 : min(360, floor(w * 0.45))
+        noticeLabel.frame = NSRect(x: w - 18 - noticeWidth, y: 14, width: noticeWidth, height: 17)
+        let seekWidth = w - 36 - noticeWidth - (noticeWidth > 0 ? 12 : 0)
+        seekBar.frame = NSRect(x: 18, y: 10, width: max(0, seekWidth), height: 24)
         var x: CGFloat = 16
         let y: CGFloat = 46
         openButton.frame = NSRect(x: x, y: y, width: 84, height: 32); x += 96
         backButton.frame = NSRect(x: x, y: y, width: 36, height: 32); x += 40
         playButton.frame = NSRect(x: x, y: y, width: 40, height: 32); x += 44
         forwardButton.frame = NSRect(x: x, y: y, width: 36, height: 32); x += 50
-        timeLabel.frame = NSRect(x: x, y: y + 7, width: 250, height: 18); x += 256
         var right = w - 16
         infoButton.frame = NSRect(x: right - 36, y: y, width: 36, height: 32); right -= 44
         notesButton.frame = NSRect(x: right - 104, y: y, width: 104, height: 32); right -= 116
-        volume.frame = NSRect(x: right - 90, y: y + 8, width: 90, height: 16); right -= 96
-        speaker.frame = NSRect(x: right - 20, y: y + 7, width: 20, height: 18); right -= 30
-        noticeLabel.frame = NSRect(x: x, y: y + 8, width: max(0, right - x), height: 16)
+        zoomButton.frame = NSRect(x: right - 96, y: y, width: 96, height: 32); right -= 108
+        let timeRow = compact ? y + 36 : y
+        if compact { right = w - 16; x = 16 }
+        volume.frame = NSRect(x: right - 90, y: timeRow + 8, width: 90, height: 16); right -= 96
+        speaker.frame = NSRect(x: right - 20, y: timeRow + 7, width: 20, height: 18); right -= 30
+        timecodeField.frame = NSRect(x: x - 3, y: timeRow + 5, width: 106, height: 22)
+        timeLabel.frame = NSRect(x: x + 112, y: timeRow + 7, width: max(0, right - x - 112), height: 18)
         layoutSummary()
     }
 
     private func layoutSummary() {
         guard summaryShown, !summary.isHidden else { return }
-        let size = summary.fit(maxWidth: min(560, videoView.frame.width - 40))
+        let size = summary.fit(maxWidth: min(560, stage.frame.width - 40))
         summary.frame = NSRect(x: 20, y: 20, width: size.width, height: size.height)
     }
 
@@ -205,6 +230,8 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         window?.title = url.lastPathComponent
         window?.representedURL = url
         review = nil; reviewURL = nil
+        endTimecodeEdit()
+        stage.reset()
         notesPanel.refresh(nil)
         seekBar.enabled = false; seekBar.markers = []
         Task { @MainActor in
@@ -212,6 +239,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
                 let media = try await MediaInfo.load(asset)
                 guard token == self.loadToken else { return }
                 self.info = media
+                self.stage.naturalSize = CGSize(width: media.width, height: media.height)
                 self.setUpReview(url, media)
                 self.player.rate = 1
                 self.updateSummary()
@@ -238,7 +266,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         if FileManager.default.fileExists(atPath: file.path) {
             do {
                 let saved = try ReviewDocument.load(file)
-                doc.cloudFolder = saved.cloudFolder; doc.syncFolder = saved.syncFolder; doc.syncHash = saved.syncHash
+                doc.syncFolder = saved.syncFolder; doc.syncHash = saved.syncHash
                 if saved.fpsNumerator == doc.fpsNumerator && saved.fpsDenominator == doc.fpsDenominator && saved.durationFrames == doc.durationFrames {
                     doc.markers = saved.markers
                 } else {
@@ -280,11 +308,15 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         guard duration.isFinite, duration > 0 else { return }
         pauseShuttle()
         if let review, exact {
-            seek(frame: min(review.durationFrames - 1, Int64((fraction * Double(review.durationFrames)).rounded(.down))))
+            let target = min(review.durationFrames - 1, Int64((fraction * Double(review.durationFrames)).rounded(.down)))
+            seek(frame: target)
+            if !timecodeField.isTyping { timecodeField.stringValue = review.timecode(target) }
+            return
         } else {
             let tolerance = exact ? CMTime.zero : CMTime(value: 1, timescale: 10)
             player.seek(to: CMTime(seconds: fraction * duration, preferredTimescale: 600), toleranceBefore: tolerance, toleranceAfter: tolerance)
         }
+        updateTime()   // while dragging, the timecode shows the frame under the mouse at once
     }
 
     func seekRelative(_ seconds: Double) {
@@ -386,11 +418,13 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         let now = player.currentTime().seconds
         let duration = player.currentItem?.duration.seconds ?? .nan
         if let review {
-            timeLabel.stringValue = review.timecode(currentFrame) + "   " + clock(now) + " / " + clock(duration)
-        } else {
-            timeLabel.stringValue = player.currentItem == nil ? "--:--:--:--" : clock(now) + " / " + clock(duration)
+            let frame = seekBar.dragging ? min(review.durationFrames - 1, max(0, Int64((seekBar.progress * Double(review.durationFrames)).rounded(.down)))) : currentFrame
+            if !timecodeField.isTyping { timecodeField.stringValue = review.timecode(frame) }
+        } else if !timecodeField.isTyping {
+            timecodeField.stringValue = "--:--:--:--"
         }
-        if duration.isFinite && duration > 0 { seekBar.progress = now / duration }
+        timeLabel.stringValue = player.currentItem == nil ? "" : clock(now) + " / " + clock(duration)
+        if duration.isFinite && duration > 0 && !seekBar.dragging { seekBar.progress = now / duration }
         if summaryShown { updateSummary() }
         updatePlayButton()
     }
@@ -399,6 +433,11 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
     func handleKey(_ event: NSEvent) -> Bool {
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // ⌘= (and ⌘+ on keyboards where + needs Shift) zoom in, like ⌘+ in the menu.
+        if mods == [.command] || mods == [.command, .shift] {
+            let key = event.charactersIgnoringModifiers ?? ""
+            if key == "=" || key == "+" { zoomStep(1); return true }
+        }
         if mods.contains(.command) || mods.contains(.control) || mods.contains(.option) { return false }
         let shift = mods.contains(.shift)
         switch event.keyCode {
@@ -427,6 +466,84 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         case ",": step(-1); return true
         default: return false
         }
+    }
+
+    // MARK: Image size
+
+    func showZoomMenu() {
+        let menu = NSMenu()
+        let fitItem = BlockMenuItem(title: "Ajustar a la ventana    ⌘0", keyEquivalent: "") { [weak self] in self?.fitVideo() }
+        fitItem.state = stage.fit ? .on : .off
+        menu.addItem(fitItem)
+        for value in [0.5, 1, 2, 4] as [CGFloat] {
+            let item = BlockMenuItem(title: VideoStage.percent(value) + (value == 1 ? " · píxel a píxel    ⌘1" : ""), keyEquivalent: "") { [weak self] in self?.zoom(to: value) }
+            item.state = !stage.fit && abs(stage.scale - value) < 0.001 ? .on : .off
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        menu.addItem(BlockMenuItem(title: "Acercar    ⌘+", keyEquivalent: "") { [weak self] in self?.zoomStep(1) })
+        menu.addItem(BlockMenuItem(title: "Alejar    ⌘−", keyEquivalent: "") { [weak self] in self?.zoomStep(-1) })
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: zoomButton.bounds.height + 4), in: zoomButton)
+    }
+
+    private func zoomReady() -> Bool {
+        if stage.hasVideo { return true }
+        notice("Abre un vídeo para cambiar el tamaño de la imagen.")
+        return false
+    }
+
+    func zoomStep(_ steps: CGFloat) {
+        guard zoomReady() else { return }
+        stage.zoomStep(steps)
+        notice(stage.fit ? "Imagen ajustada a la ventana" : "Tamaño de la imagen: " + stage.label)
+    }
+
+    func zoom(to value: CGFloat) {
+        guard zoomReady() else { return }
+        stage.zoom(to: value)
+        notice("Tamaño de la imagen: " + stage.label)
+    }
+
+    func fitVideo() {
+        guard zoomReady() else { return }
+        stage.fitVideo()
+        notice("Imagen ajustada a la ventana")
+    }
+
+    // MARK: Timecode
+
+    func beginTimecodeEdit() {
+        guard review != nil else { notice("Abre un vídeo para usar su código de tiempo."); return }
+        window?.makeFirstResponder(timecodeField)
+        notice("⌘C copia el código · escribe otro y pulsa ↩ para ir · Esc cancela")
+    }
+
+    func copyTimecode() {
+        guard let review else { notice("Abre un vídeo para copiar su código de tiempo."); return }
+        let code = review.timecode(currentFrame)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(code, forType: .string)
+        notice("Código de tiempo copiado: " + code)
+    }
+
+    private func commitTimecode(_ text: String) {
+        guard let review else { endTimecodeEdit(); return }
+        guard let frame = review.parseTimecode(text, current: currentFrame) else {
+            notice("Código de tiempo no válido. Ejemplos: 00:00:03:10, 3:10, 310 o +10", error: true)
+            timecodeField.currentEditor()?.selectAll(nil)
+            return
+        }
+        endTimecodeEdit()
+        pauseShuttle()
+        seek(frame: frame)
+        timecodeField.stringValue = review.timecode(frame)
+        notice("Ir a " + review.timecode(frame))
+    }
+
+    func endTimecodeEdit() {
+        guard timecodeField.isTyping else { return }
+        window?.makeFirstResponder(root)
+        if let review { timecodeField.stringValue = review.timecode(currentFrame) }
     }
 
     // MARK: Notes
@@ -482,7 +599,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         guard let url = player.currentItem.flatMap({ ($0.asset as? AVURLAsset)?.url }) else { return "Ningún vídeo abierto" }
         var lines = [url.lastPathComponent]
         var line2 = info.codec.isEmpty ? "Códec no indicado" : info.codec
-        if !info.bits.isEmpty { line2 += " · \(info.bits) bits" }
+        if !info.depthLabel.isEmpty { line2 += " · " + info.depthLabel }
         if info.width > 0 { line2 += " · \(info.width) × \(info.height)" }
         lines.append(line2)
         var line3 = info.fps > 0 ? String(format: "%.3f fps", info.fps).replacingOccurrences(of: ".000", with: "") : "FPS no indicados"
@@ -502,9 +619,15 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
     func notice(_ text: String, error: Bool = false) {
         noticeLabel.stringValue = text
+        noticeLabel.toolTip = text
+        layoutPlayer()
         noticeLabel.textColor = error ? Theme.error : Theme.muted
         noticeClear?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.noticeLabel.stringValue = "" }
+        let work = DispatchWorkItem { [weak self] in
+            self?.noticeLabel.stringValue = ""
+            self?.noticeLabel.toolTip = nil
+            self?.layoutPlayer()
+        }
         noticeClear = work
         DispatchQueue.main.asyncAfter(deadline: .now() + (error ? 8 : 4), execute: work)
     }

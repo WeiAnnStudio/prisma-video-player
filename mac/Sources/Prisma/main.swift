@@ -2,9 +2,11 @@
 import Foundation
 import PrismaCore
 
-// Started by Claude or ChatGPT desktop: no window, read-only notes server over stdio.
-if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--mcp" {
-    exit(McpServer.run())
+// Prisma 0.4 could be added to Claude or ChatGPT desktop, which start "Prisma --mcp". That
+// connection no longer exists: answer nothing and quit instead of opening a window.
+if CommandLine.arguments.contains("--mcp") {
+    FileHandle.standardError.write(Data("Prisma ya no ofrece conexión con Claude ni ChatGPT. Quita «prisma» de la configuración de esa app.\n".utf8))
+    exit(1)
 }
 
 #if canImport(AppKit)
