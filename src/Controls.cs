@@ -155,6 +155,8 @@ namespace Prisma
         private double fraction;
         public bool Dragging { get; private set; }
         public event Action<double> Seek;
+        // While the mouse drags the bar: the position under it, so the image and the timecode follow.
+        public event Action<double> Scrub;
         public double[] Markers = new double[0];
         public double Fraction { get { return fraction; } set { fraction = Math.Max(0, Math.Min(1, value)); Invalidate(); } }
         public SeekBar()
@@ -177,7 +179,7 @@ namespace Prisma
             }
             if (Focused) ControlPaint.DrawFocusRectangle(e.Graphics, ClientRectangle, Theme.Muted, BackColor);
         }
-        private void UpdateMouse(int x) { float s; using(Graphics g=CreateGraphics()) s=g.DpiX/96f; Fraction = (x - 8.0*s) / Math.Max(1, Width - 16*s); }
+        private void UpdateMouse(int x) { float s; using(Graphics g=CreateGraphics()) s=g.DpiX/96f; Fraction = (x - 8.0*s) / Math.Max(1, Width - 16*s); if (Dragging && Scrub != null) Scrub(fraction); }
         protected override void OnMouseDown(MouseEventArgs e)
         {
             if (e.Button != MouseButtons.Left) return;
@@ -187,7 +189,7 @@ namespace Prisma
         protected override void OnMouseUp(MouseEventArgs e)
         {
             if (!Dragging) return;
-            UpdateMouse(e.X); Dragging = false; Capture = false;
+            Dragging = false; UpdateMouse(e.X); Capture = false;
             if (Seek != null) Seek(fraction);
         }
     }

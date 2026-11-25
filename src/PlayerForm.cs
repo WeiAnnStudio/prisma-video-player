@@ -91,6 +91,7 @@ namespace Prisma
             playlist.DrawItem += DrawQueueItem;
             queue.Controls.Add(playlist); queue.Controls.Add(queueTitle);
             InitializeReview();
+            InitializeView();
             notesPanel.SetScale(dpiScale);
             foreach (Control c in transport.Controls) if (c is FlatButton) tips.SetToolTip(c, c.AccessibleName);
             tips.SetToolTip(open, "Abrir uno o varios archivos (Ctrl+O)");
@@ -113,7 +114,8 @@ namespace Prisma
             speed.Click += delegate { ShowSpeedMenu(); };
             volume.Fraction = settings.Volume / 100.0;
             volume.Seek += delegate(double value) { settings.Volume = (int)Math.Round(value * 100); if (engine != null) engine.Set("volume", settings.Volume.ToString()); };
-            seek.Seek += delegate(double value) { if (engine != null && duration > 0) { engine.Command("seek", F(value * duration), "absolute+exact"); stopped = false; } };
+            seek.Seek += delegate(double value) { if (engine != null && duration > 0) { engine.Command("seek", P(review != null ? FrameAt(value * duration) / review.Fps : value * duration), "absolute+exact"); stopped = false; } };
+            seek.Scrub += ScrubTo;
             playlist.DoubleClick += delegate { if (!updatingQueue && playlist.SelectedIndex >= 0 && engine != null) { engine.Set("playlist-pos", playlist.SelectedIndex.ToString()); engine.Set("pause", "no"); stopped = false; } };
             video.DoubleClick += delegate { if (engine != null && !video.Empty) ToggleFullscreen(); else ChooseFiles(false); };
             DragEnter += OnDragEnter; DragDrop += OnDrop; video.AllowDrop = true; video.DragEnter += OnDragEnter; video.DragDrop += OnDrop;
@@ -158,6 +160,8 @@ namespace Prisma
             audioMenu.DropDownItems.Add("Sin pistas"); subtitleMenu.DropDownItems.Add("Sin pistas"); recentMenu.DropDownItems.Add("Sin archivos recientes");
             ToolStripMenuItem view = new ToolStripMenuItem("Ver");
             view.DropDownItems.Add(Item("Pantalla completa    F11", ToggleFullscreen));
+            ToolStripMenuItem size = new ToolStripMenuItem("Tamaño de la imagen"); size.DropDownOpening += delegate { size.DropDownItems.Clear(); AddZoomItems(size.DropDownItems); };
+            size.DropDownItems.Add("Ajustar"); view.DropDownItems.Add(size);
             view.DropDownItems.Add(Item("Lista de reproducción    Ctrl+L", ToggleQueue));
             view.DropDownItems.Add(Item("Información del vídeo    Ctrl+I", ShowInfo));
             view.DropDownItems.Add(new ToolStripSeparator());
@@ -169,8 +173,8 @@ namespace Prisma
             autoColorItem.Checked = settings.ColorMode == "auto"; sdrColorItem.Checked = settings.ColorMode == "sdr";
             color.DropDownItems.Add(autoColorItem); color.DropDownItems.Add(sdrColorItem); view.DropDownItems.Add(color);
             ToolStripMenuItem help = new ToolStripMenuItem("Ayuda");
-            help.DropDownItems.Add(Item("Atajos de teclado", delegate { ShowText("Atajos de teclado", "Ctrl+O   Abrir uno o varios vídeos\r\nCtrl+Mayús+O   Añadir a la lista\r\nEspacio   Reproducir / pausar\r\n← / →   Fotograma anterior / siguiente\r\nMayús+← / →   Retroceder / avanzar 5 segundos\r\nJ / K / L   Retroceder / pausar / avanzar\r\nRepite J o L para acelerar hasta 16×; la tecla contraria frena.\r\nMayús+J / L   Revisión a media velocidad\r\nI   Resumen sobre el vídeo\r\nCtrl+I   Información completa\r\nM   Añadir marcador con nota\r\nCtrl+M   Mostrar notas\r\nCtrl+Intro   Guardar nota en edición\r\n↑ / ↓   Volumen\r\nCtrl+Mayús+M   Silenciar\r\nInicio   Volver al principio\r\nS   Detener\r\nF o F11   Pantalla completa\r\nEsc   Salir de pantalla completa\r\nCtrl+L   Mostrar lista\r\n\r\nDoble clic sobre el vídeo: pantalla completa.\r\nEl retroceso continuo usa búsquedas precisas, sin audio, y puede ir a saltos con archivos exigentes."); }));
-            help.DropDownItems.Add(Item("Acerca de Prisma", delegate { ShowText("Acerca de Prisma", "PRISMA  ·  Versión 0.4\r\nReproductor de vídeo para Windows, en español.\r\n\r\nPrisma no se conecta a internet ni envía datos. Solo abre los archivos que eliges tú.\r\n\r\nInterfaz propia con motor libmpv y FFmpeg.\r\nMotor: " + (engine == null ? "no disponible" : engine.Get("mpv-version")) + "\r\n\r\nCódigo abierto: GPL-3.0-o-posterior.\r\nSin garantía. Licencias y procedencia en la carpeta licencias.\r\n\r\nLa profundidad de color indicada corresponde al archivo. La salida final depende de Windows, la GPU, el cable y la pantalla.\r\n\r\nProRes estándar es compatible; ProRes RAW no está incluido."); }));
+            help.DropDownItems.Add(Item("Atajos de teclado", delegate { ShowText("Atajos de teclado", "Ctrl+O   Abrir uno o varios vídeos\r\nCtrl+Mayús+O   Añadir a la lista\r\nEspacio   Reproducir / pausar\r\n← / →   Fotograma anterior / siguiente\r\nMayús+← / →   Retroceder / avanzar 5 segundos\r\nJ / K / L   Retroceder / pausar / avanzar\r\nRepite J o L para acelerar hasta 16×; la tecla contraria frena.\r\nMayús+J / L   Revisión a media velocidad\r\nI   Resumen sobre el vídeo\r\nCtrl+I   Información completa\r\nM   Añadir marcador con nota\r\nCtrl+M   Mostrar notas\r\nCtrl+Intro   Guardar nota en edición\r\n↑ / ↓   Volumen\r\nCtrl+Mayús+M   Silenciar\r\nInicio   Volver al principio\r\nS   Detener\r\nF o F11   Pantalla completa\r\nEsc   Salir de pantalla completa\r\nCtrl + / Ctrl −   Acercar / alejar la imagen (también con la rueda sobre el vídeo)\r\nCtrl+0   Ajustar la imagen a la ventana\r\nCtrl+1   Imagen al 100 % (píxel a píxel)\r\nArrastrar   Mover la imagen ampliada · Clic central: ajustar / 100 %\r\nClic en el código de tiempo   Copiarlo o escribir otro para saltar\r\nCtrl+G   Ir a un código de tiempo (00:00:03:10, 3:10, 310, +10)\r\nCtrl+Mayús+C   Copiar el código de tiempo\r\nCtrl+T   (editando una nota) Insertar el código de tiempo actual\r\nCtrl+L   Mostrar lista\r\n\r\nDoble clic sobre el vídeo: pantalla completa.\r\nEl retroceso continuo usa búsquedas precisas, sin audio, y puede ir a saltos con archivos exigentes."); }));
+            help.DropDownItems.Add(Item("Acerca de Prisma", delegate { ShowText("Acerca de Prisma", "PRISMA  ·  Versión 0.5\r\nReproductor de vídeo para Windows, en español.\r\n\r\nPrisma no se conecta a internet ni envía datos. Solo abre los archivos que eliges tú.\r\n\r\nInterfaz propia con motor libmpv y FFmpeg.\r\nMotor: " + (engine == null ? "no disponible" : engine.Get("mpv-version")) + "\r\n\r\nCódigo abierto: GPL-3.0-o-posterior.\r\nSin garantía. Licencias y procedencia en la carpeta licencias.\r\n\r\nLa profundidad de color indicada corresponde al archivo. La salida final depende de Windows, la GPU, el cable y la pantalla.\r\n\r\nProRes estándar es compatible; ProRes RAW no está incluido."); }));
             menu.Items.AddRange(new ToolStripItem[] { file, playback, audioMenu, subtitleMenu, view, help }); MainMenuStrip = menu;
         }
 
@@ -198,11 +202,14 @@ namespace Prisma
             previous.SetBounds(S(18), y, S(32), bh); play.SetBounds(S(58), y - S(4), S(48), S(44));
             next.SetBounds(S(114), y, S(32), bh); stop.SetBounds(S(152), y, S(32), bh);
             back.SetBounds(S(200), y, S(34), bh); forward.SetBounds(S(238), y, S(34), bh);
-            time.SetBounds(S(292), y, Math.Max(S(176), w - S(580)), bh);
+            time.SetBounds(S(292), y, Math.Max(S(140), w - S(652)), bh);
+            if (timecodeBox.Visible) timecodeBox.SetBounds(time.Left, y + (bh - timecodeBox.Height) / 2, S(122), timecodeBox.Height);
+            zoomButton.SetBounds(w - S(340), y, S(66), bh);
             speed.SetBounds(w - S(266), y, S(52), bh); mute.SetBounds(w - S(202), y, S(34), bh);
             volume.SetBounds(w - S(162), y + S(4), S(92), S(28)); full.SetBounds(w - S(58), y, S(36), bh);
             status.SetBounds(S(20), 0, w * 2 / 3 - S(20), fh); format.SetBounds(w * 2 / 3, 0, w / 3 - S(20), fh); format.TextAlign = ContentAlignment.MiddleRight;
             video.Invalidate();
+            ApplyZoom();
         }
 
         private void StartEngine(object sender, EventArgs e)
@@ -231,7 +238,7 @@ namespace Prisma
                 stopped = false;
                 fileName.Text = engine.Get("filename"); Text = fileName.Text + " — Prisma";
                 video.Empty = !Enumerable.Range(0, (int)engine.Number("track-list/count")).Any(i => engine.Get("track-list/" + i + "/type") == "video");
-                statusUntil = DateTime.MinValue;
+                statusUntil = DateTime.MinValue; EndTimecodeEdit(); ResetZoom();
                 video.Invalidate(); RefreshQueue(); UpdateMetadata();
                 LoadReview();
             }
@@ -261,6 +268,7 @@ namespace Prisma
             }
             if (++tickCount % 10 == 0) { UpdateMetadata(); RefreshQueue(); }
             CheckDroppedFiles();
+            CheckVideoSize();
             TickReview();
         }
         internal static string Clock(double seconds)
@@ -513,7 +521,10 @@ namespace Prisma
         }
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            bool? typing = TimecodeKey(keyData);
+            if (typing.HasValue) return typing.Value || base.ProcessCmdKey(ref msg, keyData);
             if (notesPanel.Editing && notesPanel.ContainsFocus) return base.ProcessCmdKey(ref msg, keyData);
+            if (ViewKey(keyData)) return true;
             if (keyData == (Keys.Control | Keys.O)) { ChooseFiles(false); return true; }
             if (keyData == (Keys.Control | Keys.Shift | Keys.O)) { ChooseFiles(true); return true; }
             if (keyData == (Keys.Control | Keys.I)) { ShowInfo(); return true; }

@@ -22,10 +22,11 @@ namespace Prisma
         private readonly SurfacePanel titleBox = new SurfacePanel(), noteBox = new SurfacePanel();
         private readonly TextBox title = new TextBox(), note = new TextBox();
         private readonly FlatButton save = new FlatButton("Guardar nota", "Guardar nota", true), cancel = new FlatButton("Cancelar", "Cancelar edición", false);
+        private readonly FlatButton insertCode = new FlatButton("+ TC actual", "Insertar en el comentario el código de tiempo actual del reproductor (Ctrl+T)", false);
         private readonly FlatButton add = new FlatButton("Nueva nota", "Añadir nota en este fotograma (M)", true);
         private readonly FlatButton edit = new FlatButton("Editar", "Editar nota seleccionada", false);
         private readonly FlatButton import = new FlatButton("Importar", "Importar marcadores", false), export = new FlatButton("Exportar", "Exportar marcadores", false);
-        private readonly FlatButton cloud = new FlatButton("Carpeta en la nube", "Carpeta en la nube para las notas de este vídeo", false), resolve = new FlatButton("Enviar a Resolve", "Enviar las notas a la línea de tiempo abierta en DaVinci Resolve", false);
+        private readonly FlatButton cloud = new FlatButton("Carpeta de Drive", "Carpeta de Google Drive sincronizada para las notas de este vídeo", false), resolve = new FlatButton("Enviar a Resolve", "Enviar las notas a la línea de tiempo abierta en DaVinci Resolve", false);
         private readonly Font codeFont = new Font("Consolas", 9.5f), nameFont = new Font("Segoe UI Semibold", 10), bodyFont = new Font("Segoe UI", 9.5f);
         private ReviewDocument document;
         private ReviewMarker pending;
@@ -35,6 +36,8 @@ namespace Prisma
         public event Action Add, Import, Export, Cloud, SendResolve;
         public event Action<ReviewMarker> Jump;
         public event Action Changed;
+        // Timecode where the player is now, for "+ TC actual" (Ctrl+T) in the editor.
+        public Func<string> CurrentTimecode;
         private static Label Label(string text, float size, Color color)
         {
             return new Label { Text=text, Font=new Font("Segoe UI",size), ForeColor=color, BackColor=Color.Transparent, AutoEllipsis=true, TextAlign=ContentAlignment.MiddleLeft };
@@ -75,9 +78,10 @@ namespace Prisma
             titleBox.Controls.Add(title); noteBox.Controls.Add(note);
             title.Enter += delegate { titleBox.Highlight=true; titleBox.Invalidate(); }; title.Leave += delegate { titleBox.Highlight=false; titleBox.Invalidate(); };
             note.Enter += delegate { noteBox.Highlight=true; noteBox.Invalidate(); }; note.Leave += delegate { noteBox.Highlight=false; noteBox.Invalidate(); };
-            fields.Controls.AddRange(new Control[]{at,frame,titleLabel,titleBox,noteLabel,noteBox}); editorScroll.Controls.Add(fields);
+            fields.Controls.AddRange(new Control[]{at,frame,titleLabel,titleBox,noteLabel,insertCode,noteBox}); editorScroll.Controls.Add(fields);
             editor.Controls.AddRange(new Control[]{editorHeading,editorScroll,saveHint,save,cancel});
             save.Click += delegate { SaveEdit(); }; cancel.Click += delegate { CancelEdit(); };
+            insertCode.Outlined=true; insertCode.TabStop=false; insertCode.Click += delegate { InsertTimecode(); };
             Controls.AddRange(new Control[]{heading,subtitle,count,add,section,edit,list,empty,hint,cloud,resolve,import,export,editor});
             Resize += delegate { Arrange(); };
             SetScale(1); RefreshMarkers(null);
@@ -90,7 +94,7 @@ namespace Prisma
         }
         public void SetCloud(string service)
         {
-            cloud.Text=service.Length==0 ? "Carpeta en la nube" : service;
+            cloud.Text=service.Length==0 ? "Carpeta de Drive" : service;
             cloud.Active=service.Length>0; cloud.Invalidate();
         }
         public void SetScale(float value) { scale=value; Arrange(); }
@@ -119,7 +123,7 @@ namespace Prisma
             at.SetBounds(0,0,S(134),S(34)); frame.SetBounds(S(146),0,Math.Max(1,fieldWidth-S(146)),S(34));
             titleLabel.SetBounds(0,S(53),fieldWidth,S(20)); titleBox.SetBounds(0,S(79),fieldWidth,S(40));
             title.SetBounds(S(12),S(10),Math.Max(1,fieldWidth-S(24)),S(22));
-            noteLabel.SetBounds(0,S(137),fieldWidth,S(20)); noteBox.SetBounds(0,S(163),fieldWidth,Math.Max(S(130),fields.Height-S(170)));
+            noteLabel.SetBounds(0,S(137),Math.Max(1,fieldWidth-S(112)),S(20)); insertCode.SetBounds(Math.Max(0,fieldWidth-S(104)),S(130),S(104),S(28)); noteBox.SetBounds(0,S(163),fieldWidth,Math.Max(S(130),fields.Height-S(170)));
             note.SetBounds(S(12),S(12),Math.Max(1,fieldWidth-S(24)),Math.Max(1,noteBox.Height-S(24)));
             saveHint.SetBounds(pad,h-S(77),w,S(20)); cancel.SetBounds(pad,h-S(47),S(94),S(35)); save.SetBounds(pad+S(104),h-S(47),Math.Max(1,w-S(104)),S(35));
             Invalidate(); list.Invalidate();
@@ -158,7 +162,7 @@ namespace Prisma
             if(Editing) SaveEdit();
             pending=marker; editorHeading.Text=document.Markers.Contains(marker) ? "Editar nota" : "Nueva nota";
             at.Text=document.Timecode(marker.Frame); frame.Text="Fotograma "+marker.Frame;
-            title.Text=marker.Name; note.Text=marker.Note; editorScroll.AutoScrollPosition=Point.Empty;
+            title.Text=marker.Name; note.Text=marker.Note; note.SelectionStart=note.TextLength; editorScroll.AutoScrollPosition=Point.Empty;
             SetEditing(true); title.Focus(); title.SelectAll();
         }
         private void SaveEdit()
@@ -176,7 +180,20 @@ namespace Prisma
         {
             if(Editing && keys==(Keys.Control|Keys.Enter)) { SaveEdit(); return true; }
             if(Editing && keys==Keys.Escape) { CancelEdit(); return true; }
+            if(Editing && keys==(Keys.Control|Keys.T)) { InsertTimecode(); return true; }
             return base.ProcessCmdKey(ref msg,keys);
+        }
+        // Writes the player's current timecode where the cursor was in the comment (at the end
+        // if the comment was never clicked), so a note can say "move this cut to 00:00:03:10".
+        private void InsertTimecode()
+        {
+            string code=CurrentTimecode==null ? "" : CurrentTimecode();
+            if(!Editing || string.IsNullOrEmpty(code)) return;
+            int start=Math.Min(note.SelectionStart,note.TextLength);
+            string before=note.Text.Substring(0,start);
+            if(before.Length>0 && !char.IsWhiteSpace(before[before.Length-1]) && note.SelectionLength==0) code=" "+code;
+            note.SelectedText=code+" ";
+            note.Focus(); note.SelectionLength=0;
         }
         private void DrawMarker(object sender,DrawItemEventArgs e)
         {

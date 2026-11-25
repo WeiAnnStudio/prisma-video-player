@@ -22,8 +22,6 @@ namespace Prisma
     {
         public int Version = 1;
         public string MediaPath = "";
-        // Cloud folder chosen for this video (Google Drive, Dropbox or OneDrive).
-        public string CloudFolder = "";
         // Folder on this computer kept in sync by Google Drive, Dropbox or OneDrive (automatic delivery).
         public string SyncFolder = "", SyncHash = "";
         public int FpsNumerator = 25, FpsDenominator = 1;
@@ -45,11 +43,44 @@ namespace Prisma
             int nominal = (int)Math.Round(Fps); frame = Math.Max(0, frame);
             return (frame / (nominal * 3600)).ToString("00") + ":" + (frame / (nominal * 60) % 60).ToString("00") + ":" + (frame / nominal % 60).ToString("00") + ":" + (frame % nominal).ToString("00");
         }
+        // Reads a timecode typed by the user, as in Premiere or DaVinci: "00:00:03:10", "3:10"
+        // (seconds:frames), "1.00.00.00", or only digits read from the right ("310" = 00:00:03:10).
+        // A leading + or - moves from the current frame ("+10" = ten frames later). The result is
+        // clamped to the video. Returns false for anything that is not a timecode.
+        public bool TryParseTimecode(string text, long current, out long frame)
+        {
+            frame = current;
+            string s = (text ?? "").Trim().Replace(" ", "");
+            if (s.Length == 0 || s.Length > 16) return false;
+            int sign = 0;
+            if (s[0] == '+' || s[0] == '-') { sign = s[0] == '+' ? 1 : -1; s = s.Substring(1); }
+            if (s.Length == 0) return false;
+            string[] parts;
+            if (s.IndexOfAny(new char[] { ':', ';', '.', ',' }) >= 0) parts = s.Split(':', ';', '.', ',');
+            else
+            {
+                if (s.Length > 8) return false;
+                s = s.PadLeft(8, '0');
+                parts = new string[] { s.Substring(0, 2), s.Substring(2, 2), s.Substring(4, 2), s.Substring(6, 2) };
+            }
+            if (parts.Length > 4) return false;
+            long[] values = new long[4];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string p = parts[parts.Length - 1 - i];
+                if (p.Length == 0) p = "0";
+                if (p.Length > 4 || !p.All(char.IsDigit)) return false;
+                values[3 - i] = long.Parse(p, CultureInfo.InvariantCulture);
+            }
+            int nominal = (int)Math.Round(Fps);
+            long typed = ((values[0] * 60 + values[1]) * 60 + values[2]) * nominal + values[3];
+            long target = sign == 0 ? typed : current + sign * typed;
+            frame = Math.Max(0, Math.Min(Math.Max(0, DurationFrames - 1), target));
+            return true;
+        }
         public void Validate()
         {
             if (Version != 1 || FpsNumerator <= 0 || FpsDenominator <= 0 || Fps < 1 || Fps > 240 || DurationFrames < 0 || Markers == null || Markers.Count > 100000) throw new InvalidDataException("El documento de marcadores no es válido.");
-            string folder, service;
-            CloudFolder = CloudFolder != null && CloudFolder.Length > 0 && global::Prisma.CloudFolder.TryNormalize(CloudFolder, out folder, out service) ? folder : "";
             if (SyncFolder == null || !global::Prisma.SyncDelivery.IsValidFolder(SyncFolder)) SyncFolder = "";
             if (SyncHash == null || SyncHash.Length > 64) SyncHash = "";
             foreach (ReviewMarker m in Markers)
@@ -78,7 +109,7 @@ namespace Prisma
         // not the full path, which would reveal the Windows user name and folder layout.
         public ReviewDocument SharingCopy()
         {
-            return new ReviewDocument { Version = Version, MediaPath = Path.GetFileName(MediaPath), CloudFolder = "", FpsNumerator = FpsNumerator, FpsDenominator = FpsDenominator, DurationFrames = DurationFrames, Width = Width, Height = Height, AudioChannels = AudioChannels, AudioRate = AudioRate, Markers = Markers.OrderBy(m => m.Frame).ToList() };
+            return new ReviewDocument { Version = Version, MediaPath = Path.GetFileName(MediaPath), FpsNumerator = FpsNumerator, FpsDenominator = FpsDenominator, DurationFrames = DurationFrames, Width = Width, Height = Height, AudioChannels = AudioChannels, AudioRate = AudioRate, Markers = Markers.OrderBy(m => m.Frame).ToList() };
         }
         public void SaveForSharing(string path) { SharingCopy().Save(path); }
         public string SharingJson() { ReviewDocument copy = SharingCopy(); copy.Validate(); return new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 }.Serialize(copy); }

@@ -7,7 +7,7 @@ using System.Windows.Forms;
 using System.Reflection;
 [assembly: AssemblyTitle("Prisma")]
 [assembly: AssemblyDescription("Reproductor de vídeo para Windows")]
-[assembly: AssemblyVersion("0.4.0.0")]
+[assembly: AssemblyVersion("0.5.0.0")]
 
 namespace Prisma
 {
@@ -19,8 +19,9 @@ namespace Prisma
         {
             Hardening.Apply();
             string data = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos");
-            // Started by Claude or ChatGPT desktop: no window, no engine, read-only notes server.
-            if (args.Length == 1 && args[0] == "--mcp") return McpServer.Run(Path.Combine(data, "marcadores"));
+            // Prisma 0.4 could be added to Claude or ChatGPT desktop, which start "Prisma.exe --mcp".
+            // That connection no longer exists: answer nothing and quit instead of opening a window.
+            if (args.Contains("--mcp")) { Console.Error.WriteLine("Prisma ya no ofrece conexión con Claude ni ChatGPT. Quita «prisma» de la configuración de esa app."); return 1; }
 
             bool testSession = args.Contains("--test-session");
             string[] files = args.Where(a => a != "--test-session").ToArray();
