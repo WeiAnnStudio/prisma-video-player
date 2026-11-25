@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Publishes a version: builds Prisma for Windows and for Mac on GitHub's machines and attaches
+# both zips to one release. The file names never change, so these links always give the
+# newest version:
+#   https://github.com/WeiAnnStudio/prisma-video-player/releases/latest/download/Prisma-Windows.zip
+#   https://github.com/WeiAnnStudio/prisma-video-player/releases/latest/download/Prisma-Mac.zip
+# Run by hand: Actions > Publicar versión > Run workflow, with the version written in the code.
+name: Publicar versión
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión que se publica (la del código, por ejemplo 0.5.0)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compilar Prisma.exe
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -OutputDirectory build\Prisma
+      - name: Preparar el zip
+        shell: powershell
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $code = ([regex]::Match((Get-Content -Raw src\Program.cs), 'AssemblyVersion\("(\d+\.\d+\.\d+)')).Groups[1].Value
+          if ($code -ne $env:VERSION) { throw "El código de Windows es la versión $code, no $env:VERSION" }
+          $out = 'build\Prisma'
+          Copy-Item Prisma\LEEME.txt, Prisma\Prisma.ico -Destination $out -Force
+          Copy-Item Prisma\licencias -Destination $out -Recurse -Force
+          Compress-Archive -Path $out -DestinationPath build\Prisma-Windows.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: build/Prisma-Windows.zip
+
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pruebas
+        working-directory: mac
+        run: swift test
+      - name: Compilar Prisma.app
+        env:
+          PRISMA_VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$PRISMA_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Versión no válida: $PRISMA_VERSION"; exit 1; }
+          bash mac/build-app.sh
+          cp "mac/build/Prisma-$PRISMA_VERSION-mac.zip" mac/build/Prisma-Mac.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: mac/build/Prisma-Mac.zip
+
+  publish:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Crear la versión con las dos descargas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Versión no válida: $VERSION"; exit 1; }
+          cd dist
+          sha256sum Prisma-Windows.zip Prisma-Mac.zip > SHA256.txt
+          sed -e "s/{{VERSION}}/$VERSION/g" ../.github/release-notes.md > notes.md
+          { echo; echo '```'; cat SHA256.txt; echo '```'; } >> notes.md
+          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title "Prisma $VERSION" --notes-file notes.md Prisma-Windows.zip Prisma-Mac.zip SHA256.txt
