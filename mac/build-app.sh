@@ -5,7 +5,7 @@
 # System Settings > Privacy & Security > "Open Anyway".
 set -euo pipefail
 cd "$(dirname "$0")"
-VERSION="${PRISMA_VERSION:-0.4.0}"
+VERSION="${PRISMA_VERSION:-0.5.0}"
 OUT=build
 APP="$OUT/Prisma/Prisma.app"
 
@@ -76,10 +76,9 @@ plutil -lint "$APP/Contents/Info.plist"
 codesign --force --deep --options runtime --timestamp=none --sign - "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 
-# Smoke test: the MCP mode answers without opening a window.
-REPLY="$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' | PRISMA_DATA="$(mktemp -d)" "$APP/Contents/MacOS/Prisma" --mcp)"
-echo "$REPLY" | grep -q '"serverInfo"' || { echo "MCP no responde: $REPLY"; exit 1; }
-echo "MCP OK"
+# Smoke test: an old Claude / ChatGPT entry ("Prisma --mcp") ends at once, without a window.
+if "$APP/Contents/MacOS/Prisma" --mcp </dev/null 2>/dev/null; then echo "--mcp debería terminar con error"; exit 1; fi
+echo "--mcp ya no abre nada: OK"
 
 cp LEEME-Mac.txt "$OUT/Prisma/LEEME.txt"
 mkdir -p "$OUT/Prisma/licencias"

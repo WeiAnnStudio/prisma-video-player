@@ -1,4 +1,4 @@
-PRISMA 0.4 PARA MAC — REPRODUCTOR Y REVISOR DE VÍDEO
+PRISMA 0.5 PARA MAC — REPRODUCTOR Y REVISOR DE VÍDEO
 
 Prisma reproduce vídeo y permite revisar fotograma a fotograma con notas de código de tiempo.
 Las notas son las mismas que en Prisma para Windows: un Mac y un PC pueden intercambiarlas.
@@ -29,6 +29,18 @@ J / K / L  atrás / pausa / adelante (repite J o L para acelerar hasta 16×)
 M  añadir nota en este fotograma      N  mostrar notas
 I  resumen sobre el vídeo             ⌘I  información completa
 F  pantalla completa                  ⇧⌘R  enviar notas a DaVinci Resolve
+⌘+ / ⌘−  acercar / alejar la imagen    ⌘0  ajustar   ⌘1  100 % (píxel a píxel)
+⌘G  ir a un código de tiempo          ⇧⌘C  copiar el código de tiempo
+
+TAMAÑO DE LA IMAGEN
+La imagen se ajusta a la ventana por defecto, también en pantalla completa. Rueda del ratón o
+pellizco en el trackpad sobre el vídeo: acercar / alejar. Con la imagen ampliada, arrástrala o
+desplázate con dos dedos para moverla. El botón de tamaño muestra el valor y ofrece 50 % a 400 %.
+
+CÓDIGO DE TIEMPO
+Clic en el código de tiempo del reproductor: queda seleccionado para copiarlo con ⌘C, o escribe
+otro y pulsa ↩ para ir a él. Vale 00:00:03:10, 3:10 (segundos:fotogramas), 310 o +10 / -1:00.
+Al escribir una nota, «+ TC actual» o ⌘T inserta el código de tiempo donde está el reproductor.
 
 NOTAS DE REVISIÓN
 Pulsa M sobre un fotograma, escribe la nota y guarda con ⌘↩. Clic en una nota: ir a su fotograma.
@@ -43,20 +55,17 @@ General > Scripting externo (External scripting using): Local. Reinicia Resolve 
 Los FPS de la línea de tiempo deben coincidir con los del vídeo, o no se añade nada.
 Enviar dos veces no duplica. Con Resolve gratuito, Prisma te ofrece exportar el XML.
 
-TRABAJO EN EQUIPO CON LA NUBE Y LA IA
-En el panel de notas, pulsa «Carpeta en la nube». Cada vídeo recuerda la suya.
-AUTOMÁTICA (sin IA): «Elegir carpeta del Mac…» y escoge una carpeta que Google Drive, Dropbox u
-OneDrive sincronicen en este Mac. Al cambiar una nota, Prisma escribe ahí «Ajustes <vídeo>.docx»
-y «<vídeo>.prisma.json», y la nube los sube.
-CON IA: pega el enlace de la carpeta. Una sola vez: menú IA > Conectar con Claude o con ChatGPT y
-reinicia esa app. Después pide en un chat: «Pasa a la nube las notas de <vídeo>».
-Antes de conectar, Prisma tiene que estar en la carpeta Aplicaciones.
+TRABAJO EN EQUIPO CON GOOGLE DRIVE
+En el panel de notas, pulsa «Carpeta de Drive» y elige la carpeta del vídeo dentro de Google Drive
+en el Finder (Mi unidad o Unidades compartidas). Cada vídeo recuerda la suya. También sirve una
+carpeta de Dropbox u OneDrive. Al cambiar una nota, Prisma escribe ahí «Ajustes <vídeo>.docx» y
+«<vídeo>.prisma.json», y Google Drive para escritorio los sube. El documento tiene una casilla por
+nota; si no cambiaste el título propuesto («Nota 3»), solo se copia el comentario.
+Prisma no se conecta a internet: solo escribe en esa carpeta de tu Mac.
 
 SEGURIDAD Y PRIVACIDAD
 Prisma no se conecta a internet ni envía datos. Solo abre archivos locales que eliges tú; rechaza
 listas M3U/M3U8 y enlaces. El JSON para compartir no incluye rutas de tu Mac.
-La conexión con Claude o ChatGPT es de solo lectura: la IA ve el nombre del vídeo, los FPS, la
-carpeta asociada y el texto de las notas, nunca las rutas de tu Mac.
 El envío a Resolve usa el fuscript de tu Resolve con un script fijo incluido en Prisma.
 Tus notas están en ~/Library/Application Support/Prisma.
 
