@@ -2,7 +2,7 @@
 import Foundation
 
 // Automatic delivery to a folder that Google Drive, Dropbox or OneDrive keeps in sync on this Mac.
-// Every time the notes change, Prisma writes "Ajustes <video>.docx" (one bullet per note) and
+// Every time the notes change, Prisma writes "Ajustes <video>.docx" (one checkbox per note) and
 // "<video>.prisma.json" there, and the sync app uploads them. Prisma itself never connects to
 // the cloud. A document someone else edited is kept under another name, never lost.
 public enum SyncDelivery {
@@ -46,12 +46,31 @@ public enum SyncDelivery {
     }
 
     public static func label(_ doc: ReviewDocument?) -> String {
-        guard let doc else { return "" }
-        if !doc.syncFolder.isEmpty { return service(doc.syncFolder) + " · auto" }
-        return CloudFolder.serviceName(doc.cloudFolder)
+        guard let doc, !doc.syncFolder.isEmpty else { return "" }
+        return service(doc.syncFolder)
     }
 
-    public static func documentName(_ doc: ReviewDocument) -> String { McpServer.title(doc) + ".docx" }
+    public static func title(_ doc: ReviewDocument) -> String { "Ajustes " + doc.mediaPath.portableFileName.fileNameWithoutExtension }
+    public static func sharingFileName(_ doc: ReviewDocument) -> String { doc.mediaPath.portableFileName.fileNameWithoutExtension + ".prisma.json" }
+
+    public static func line(_ doc: ReviewDocument, _ m: ReviewMarker) -> String {
+        let name = m.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = m.note.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s*[\\r\\n]+\\s*", with: " / ", options: .regularExpression)
+        let generic = isDefaultName(name)
+        let body = generic ? note : (note.isEmpty ? name : name + ": " + note)
+        return doc.timecode(m.frame) + " " + (body.isEmpty ? "(sin texto)" : body)
+    }
+
+    // The title Prisma proposes for a new note ("Nota 3"), or none: it says nothing, so the
+    // documents leave it out and keep only the timecode and the comment.
+    public static func isDefaultName(_ name: String) -> Bool {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return n.isEmpty || n.range(of: "^nota(\\s*(n\\.?|nº|#)?\\s*\\d+)?$", options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+
+    public static func documentName(_ doc: ReviewDocument) -> String { title(doc) + ".docx" }
 
     // Writes both files. Returns a short status for the status bar.
     @discardableResult
@@ -72,10 +91,10 @@ public enum SyncDelivery {
                 // Not the last version Prisma wrote (someone edited it, or it was made elsewhere): keep it.
                 let stamp = DateFormatter()
                 stamp.locale = Locale(identifier: "en_US_POSIX"); stamp.dateFormat = "yyyy-MM-dd HHmm"
-                kept = McpServer.title(doc) + " (editado " + stamp.string(from: now) + ").docx"
+                kept = title(doc) + " (editado " + stamp.string(from: now) + ").docx"
                 var target = base.appendingPathComponent(kept), n = 2
                 while fm.fileExists(atPath: target.path) {
-                    kept = McpServer.title(doc) + " (editado " + stamp.string(from: now) + " \(n)).docx"
+                    kept = title(doc) + " (editado " + stamp.string(from: now) + " \(n)).docx"
                     target = base.appendingPathComponent(kept); n += 1
                 }
                 try fm.moveItem(at: docx, to: target)
@@ -84,7 +103,7 @@ public enum SyncDelivery {
         if fm.contents(atPath: docx.path).map(SHA256.hex) != written { try bytes.write(to: docx, options: .atomic) }
         doc.syncHash = written
         let json = Data(try doc.sharingJSON().utf8)
-        let jsonURL = base.appendingPathComponent(McpServer.sharingFileName(doc))
+        let jsonURL = base.appendingPathComponent(sharingFileName(doc))
         if fm.contents(atPath: jsonURL.path) != json { try json.write(to: jsonURL, options: .atomic) }
         return kept.isEmpty ? "Notas actualizadas en " + service(folder) : "El documento tenía cambios de otra persona: se conservan en «" + kept + "»"
     }
@@ -103,27 +122,33 @@ public enum SyncDelivery {
         return "<w:r><w:rPr>\(props)</w:rPr><w:t xml:space=\"preserve\">\(x(text))</w:t></w:r>"
     }
 
+    // One unchecked checkbox per note. In Word it is a checkbox content control that can be
+    // ticked with a click; other editors (Google Docs, Pages) show the same ☐ character.
+    private static func checkboxLine(_ id: Int, _ text: String) -> String {
+        let font = "<w:rFonts w:ascii=\"MS Gothic\" w:eastAsia=\"MS Gothic\" w:hAnsi=\"MS Gothic\" w:hint=\"eastAsia\" />"
+        let box = "<w:sdt><w:sdtPr><w:id w:val=\"\(id)\" /><w14:checkbox><w14:checked w14:val=\"0\" /><w14:checkedState w14:val=\"2612\" w14:font=\"MS Gothic\" /><w14:uncheckedState w14:val=\"2610\" w14:font=\"MS Gothic\" /></w14:checkbox></w:sdtPr>" +
+            "<w:sdtContent><w:r><w:rPr>\(font)</w:rPr><w:t>\u{2610}</w:t></w:r></w:sdtContent></w:sdt>"
+        return "<w:p><w:pPr><w:spacing w:after=\"80\" /><w:ind w:left=\"425\" w:hanging=\"425\" /></w:pPr>" + box +
+            "<w:r><w:tab /><w:t xml:space=\"preserve\">\(x(text))</w:t></w:r></w:p>"
+    }
+
     public static func documentXML(_ doc: ReviewDocument) -> String {
-        var body = "<w:p>" + run(McpServer.title(doc), bold: true, halfPoints: 28) + "</w:p><w:p />"
-        for m in doc.markers.sorted(by: { $0.frame < $1.frame }) {
-            body += "<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\" /><w:numId w:val=\"1\" /></w:numPr></w:pPr>" + run(McpServer.line(doc, m)) + "</w:p>"
+        var body = "<w:p>" + run(title(doc), bold: true, halfPoints: 28) + "</w:p><w:p />"
+        for (i, m) in doc.markers.sorted(by: { $0.frame < $1.frame }).enumerated() {
+            body += checkboxLine(i + 1, line(doc, m))
         }
-        let footer = "Notas de Prisma (" + ReviewDocument.trim(doc.fps, decimals: 3) + " fps). Para cargarlas en Prisma y enviarlas a DaVinci Resolve, importa «" + McpServer.sharingFileName(doc) + "» de esta carpeta. Prisma actualiza este documento al cambiar las notas; si lo editas aquí, tu versión se conserva con otro nombre."
+        let footer = "Notas de Prisma (" + ReviewDocument.trim(doc.fps, decimals: 3) + " fps). Para cargarlas en Prisma y enviarlas a DaVinci Resolve, importa «" + sharingFileName(doc) + "» de esta carpeta. Prisma actualiza este documento al cambiar las notas; si lo editas aquí, tu versión se conserva con otro nombre."
         body += "<w:p /><w:p>" + run(footer, italic: true, halfPoints: 18) + "</w:p><w:sectPr />"
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body + "</w:body></w:document>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"w14\"><w:body>" + body + "</w:body></w:document>"
     }
 
     public static func docxData(_ doc: ReviewDocument) -> Data {
-        let types = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/><Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/></Types>"
+        let types = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>"
         let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>"
-        let docRels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\"/></Relationships>"
-        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\" /><w:numFmt w:val=\"bullet\" /><w:lvlText w:val=\"•\" /><w:lvlJc w:val=\"left\" /><w:pPr><w:ind w:left=\"720\" w:hanging=\"360\" /></w:pPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\" /></w:num></w:numbering>"
         return Zip.store([
             ("[Content_Types].xml", Data(types.utf8)),
             ("_rels/.rels", Data(rels.utf8)),
-            ("word/_rels/document.xml.rels", Data(docRels.utf8)),
             ("word/document.xml", Data(documentXML(doc).utf8)),
-            ("word/numbering.xml", Data(numbering.utf8)),
         ])
     }
 }

@@ -22,7 +22,6 @@ public final class ReviewMarker {
 public final class ReviewDocument {
     public var version = 1
     public var mediaPath = ""
-    public var cloudFolder = ""      // Google Drive, Dropbox or OneDrive link for this video
     public var syncFolder = ""       // folder on this Mac kept in sync by one of those apps
     public var syncHash = ""
     public var fpsNumerator = 25, fpsDenominator = 1
@@ -51,11 +50,42 @@ public final class ReviewDocument {
         return String(format: "%02lld:%02lld:%02lld:%02lld", f / (nominal * 3600), f / (nominal * 60) % 60, f / nominal % 60, f % nominal)
     }
 
+    // Reads a timecode typed by the user, as in Premiere or DaVinci: "00:00:03:10", "3:10"
+    // (seconds:frames), "1.00.00.00", or only digits read from the right ("310" = 00:00:03:10).
+    // A leading + or - moves from the current frame ("+10" = ten frames later). The result is
+    // clamped to the video. Returns nil for anything that is not a timecode.
+    public func parseTimecode(_ text: String, current: Int64) -> Int64? {
+        var s = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: " ", with: "")
+        guard !s.isEmpty, s.count <= 16 else { return nil }
+        var sign: Int64 = 0
+        if s.hasPrefix("+") || s.hasPrefix("-") { sign = s.hasPrefix("+") ? 1 : -1; s.removeFirst() }
+        guard !s.isEmpty else { return nil }
+        let separators = CharacterSet(charactersIn: ":;.,")
+        var parts: [String]
+        if s.rangeOfCharacter(from: separators) != nil {
+            parts = s.components(separatedBy: separators)
+        } else {
+            guard s.count <= 8 else { return nil }
+            let padded = Array(String(repeating: "0", count: 8 - s.count) + s)
+            parts = stride(from: 0, to: 8, by: 2).map { String(padded[$0..<$0 + 2]) }
+        }
+        guard parts.count <= 4 else { return nil }
+        var values: [Int64] = [0, 0, 0, 0]
+        for (i, raw) in parts.reversed().enumerated() {
+            let p = raw.isEmpty ? "0" : raw
+            guard p.count <= 4, p.allSatisfy({ $0.isASCII && $0.isNumber }), let v = Int64(p) else { return nil }
+            values[3 - i] = v
+        }
+        let nominal = Int64(fps.rounded())
+        let typed = ((values[0] * 60 + values[1]) * 60 + values[2]) * nominal + values[3]
+        let target = sign == 0 ? typed : current + sign * typed
+        return max(0, min(max(0, durationFrames - 1), target))
+    }
+
     public func validate() throws {
         if version != 1 || fpsNumerator <= 0 || fpsDenominator <= 0 || fps < 1 || fps > 240 || durationFrames < 0 || markers.count > 100_000 {
             throw PrismaError("El documento de marcadores no es válido.")
         }
-        cloudFolder = CloudFolder.normalize(cloudFolder)?.url ?? ""
         if !SyncDelivery.isValidFolder(syncFolder) { syncFolder = "" }
         if syncHash.count > 64 { syncHash = "" }
         for m in markers {
@@ -76,7 +106,7 @@ public final class ReviewDocument {
     // MARK: JSON
 
     public func json() -> String {
-        var s = "{\"Version\":\(version),\"MediaPath\":\(JSON.string(mediaPath)),\"CloudFolder\":\(JSON.string(cloudFolder)),"
+        var s = "{\"Version\":\(version),\"MediaPath\":\(JSON.string(mediaPath)),"
         s += "\"SyncFolder\":\(JSON.string(syncFolder)),\"SyncHash\":\(JSON.string(syncHash)),"
         s += "\"FpsNumerator\":\(fpsNumerator),\"FpsDenominator\":\(fpsDenominator),\"DurationFrames\":\(durationFrames),"
         s += "\"Width\":\(width),\"Height\":\(height),\"AudioChannels\":\(audioChannels),\"AudioRate\":\(audioRate),\"Markers\":["
@@ -95,7 +125,6 @@ public final class ReviewDocument {
         func int(_ k: String, _ fallback: Int) -> Int { JSON.int64(keys[k]).map { Int(clamping: $0) } ?? fallback }
         doc.version = int("version", 1)
         doc.mediaPath = text("mediapath")
-        doc.cloudFolder = text("cloudfolder")
         doc.syncFolder = text("syncfolder")
         doc.syncHash = text("synchash")
         doc.fpsNumerator = int("fpsnumerator", 25)
