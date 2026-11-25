@@ -14,7 +14,7 @@ final class PrismaCoreTests: XCTestCase {
 
     func sample(_ media: String = "/Users/ana/Renders/Corto 12.mov") -> ReviewDocument {
         let doc = ReviewDocument()
-        doc.mediaPath = media; doc.durationFrames = 20000; doc.cloudFolder = "https://drive.google.com/drive/folders/1AbC"
+        doc.mediaPath = media; doc.durationFrames = 20000
         try! doc.setFps(25)
         doc.markers.append(ReviewMarker(frame: 3659, name: "Nota 1", note: "se ha colado una \"n\" después de \"carro\""))
         doc.markers.append(ReviewMarker(frame: 6401, name: "Sonido", note: "limpiamos este sonido\r\nsegunda línea"))
@@ -38,6 +38,28 @@ final class PrismaCoreTests: XCTestCase {
         try doc.setFps(23.976); XCTAssertEqual(doc.timecode(86400), "01:00:00:00")
     }
 
+    func testTypedTimecode() throws {
+        let doc = ReviewDocument(); try doc.setFps(25); doc.durationFrames = 20000
+        XCTAssertEqual(doc.parseTimecode("00:00:03:10", current: 0), 85)
+        XCTAssertEqual(doc.parseTimecode("3:10", current: 0), 85)
+        XCTAssertEqual(doc.parseTimecode("310", current: 0), 85)
+        XCTAssertEqual(doc.parseTimecode("1.00.00", current: 0), 1500)
+        XCTAssertEqual(doc.parseTimecode("+10", current: 100), 110)
+        XCTAssertEqual(doc.parseTimecode("-1:00", current: 100), 75)
+        XCTAssertEqual(doc.parseTimecode("99:00:00:00", current: 0), 19999)
+        XCTAssertEqual(doc.parseTimecode("-500", current: 10), 0)
+        XCTAssertNil(doc.parseTimecode("abc", current: 0))
+        XCTAssertNil(doc.parseTimecode("", current: 0))
+        XCTAssertNil(doc.parseTimecode("1:2:3:4:5", current: 0))
+        try doc.setFps(23.976); doc.durationFrames = 200000
+        XCTAssertEqual(doc.parseTimecode("01:00:00:00", current: 0), 86400)
+    }
+
+    func testDefaultNoteTitles() {
+        for name in ["Nota", "Nota 1", "nota 12", "NOTA 3", "Nota #4", "Nota nº 5", "Nota3", "  Nota 2  ", ""] { XCTAssertTrue(SyncDelivery.isDefaultName(name), name) }
+        for name in ["Notan", "Nota importante", "Música", "Nota 1 audio", "Notas"] { XCTAssertFalse(SyncDelivery.isDefaultName(name), name) }
+    }
+
     // A file exactly as Prisma for Windows writes it (JavaScriptSerializer).
     func testReadsWindowsJson() throws {
         let windows = "{\"Version\":1,\"MediaPath\":\"Corto 12.mov\",\"CloudFolder\":\"\",\"SyncFolder\":\"G:\\\\Mi unidad\\\\Revisiones\",\"SyncHash\":\"\",\"FpsNumerator\":24000,\"FpsDenominator\":1001,\"DurationFrames\":20000,\"Width\":3840,\"Height\":2160,\"AudioChannels\":2,\"AudioRate\":48000,\"Markers\":[{\"Id\":\"0f8fad5bd9cb469fa16570867728950e\",\"Frame\":100,\"Name\":\"M\\u00fasica\",\"Note\":\"\\u003cok\\u003e\"}]}"
@@ -53,7 +75,6 @@ final class PrismaCoreTests: XCTestCase {
         try doc.save(url)
         let back = try ReviewDocument.load(url)
         XCTAssertEqual(back.markers.count, 3); XCTAssertEqual(back.markers[0].note, doc.markers[0].note)
-        XCTAssertEqual(back.cloudFolder, doc.cloudFolder)
         XCTAssertTrue(doc.json().hasPrefix("{\"Version\":1,\"MediaPath\":"), "Mismo orden de campos que Windows")
         let shared = try doc.sharingJSON()
         XCTAssertFalse(shared.contains("/Users/ana")); XCTAssertFalse(shared.contains("drive.google.com"))
@@ -68,8 +89,9 @@ final class PrismaCoreTests: XCTestCase {
         XCTAssertThrowsError(try doc.validate())
         let long = sample(); long.markers[0].note = String(repeating: "x", count: 20001)
         XCTAssertThrowsError(try long.validate())
-        let bad = sample(); bad.cloudFolder = "https://evil.example/x"
-        XCTAssertNoThrow(try bad.validate()); XCTAssertEqual(bad.cloudFolder, "")
+        // Notes saved by 0.4 kept a cloud link; it is ignored now and dropped on the next save.
+        let old = try? ReviewDocument.parse(Data("{\"Version\":1,\"MediaPath\":\"a.mov\",\"CloudFolder\":\"https://drive.google.com/drive/folders/1AbC\",\"FpsNumerator\":25,\"FpsDenominator\":1,\"DurationFrames\":100,\"Markers\":[]}".utf8))
+        XCTAssertNotNil(old); XCTAssertFalse(old?.json().contains("CloudFolder") ?? true)
         XCTAssertThrowsError(try ReviewDocument.parse(Data("{no".utf8)))
     }
 
@@ -111,62 +133,13 @@ final class PrismaCoreTests: XCTestCase {
         XCTAssertEqual([s.press(1), s.press(1), s.press(1), s.press(-1), s.press(-1), s.press(-1), s.press(-1)], [1, 2, 4, 2, 1, -1, -2])
     }
 
-    func testCloudFolders() {
-        XCTAssertEqual(CloudFolder.normalize("https://drive.google.com/drive/folders/1AbC?usp=sharing")?.service, "Google Drive")
-        XCTAssertEqual(CloudFolder.normalize("www.dropbox.com/scl/fo/abc/xyz?dl=0")?.url.hasPrefix("https://www.dropbox.com/"), true)
-        XCTAssertEqual(CloudFolder.normalize("https://1drv.ms/f/s!Abc")?.service, "OneDrive")
-        XCTAssertEqual(CloudFolder.normalize("https://contoso-my.sharepoint.com/:f:/g/personal/x")?.service, "OneDrive")
-        for bad in ["http://drive.google.com/drive/folders/1", "https://drive.google.com.evil.example/x", "https://user:pass@drive.google.com/x",
-                    "file:///C:/x", "https://sharepoint.com/x", "javascript:alert(1)", "https://drive.google.com:8443/x"] {
-            XCTAssertNil(CloudFolder.normalize(bad), bad)
-        }
-    }
-
-    func testMcpDocumentAndTools() throws {
+    func testDocumentLines() {
         let doc = sample()
-        let text = McpServer.document(doc)
-        XCTAssertTrue(text.contains("titulo: Ajustes Corto 12"))
-        XCTAssertTrue(text.contains("00:02:26:09 se ha colado una \"n\" después de \"carro\""))
-        XCTAssertTrue(text.contains("00:04:16:01 Sonido: limpiamos este sonido / segunda línea"))
-        XCTAssertTrue(text.contains("00:00:04:00 Música"))
-        XCTAssertLessThan(text.range(of: "00:00:04:00")!.lowerBound, text.range(of: "00:02:26:09")!.lowerBound)
-        XCTAssertFalse(text.contains("/Users/ana"))
-
-        let markers = temp.appendingPathComponent("marcadores")
-        try doc.save(ReviewDocument.storageURL(for: doc.mediaPath, in: markers))
-        let mcp = McpServer(markersFolder: markers)
-        let initReply = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}")!
-        XCTAssertTrue(initReply.contains("\"protocolVersion\":\"2025-06-18\"") && initReply.contains("\"instructions\""))
-        XCTAssertNil(mcp.handle("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}"))
-        let tools = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}")!
-        XCTAssertTrue(tools.contains("listar_revisiones") && tools.contains("leer_revision") && tools.contains("readOnlyHint"))
-        let listed = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"listar_revisiones\",\"arguments\":{}}}")!
-        XCTAssertTrue(listed.contains("Corto 12.mov") && listed.contains("Google Drive") && !listed.contains("/Users/ana"))
-        let read = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":\"x\",\"method\":\"tools/call\",\"params\":{\"name\":\"leer_revision\",\"arguments\":{\"video\":\"corto 12\"}}}")!
-        XCTAssertTrue(read.contains("Ajustes Corto 12") && read.contains("00:02:26:09") && read.contains("\"id\":\"x\""))
-        XCTAssertTrue(read.contains("archivo_prisma: Corto 12.prisma.json"))
-        let jsonReply = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"json_revision\",\"arguments\":{\"video\":\"Corto 12.mov\"}}}")!
-        let parsed = try JSON.parse(Data(jsonReply.utf8)) as! [String: Any]
-        let content = ((parsed["result"] as! [String: Any])["content"] as! [Any])[0] as! [String: Any]
-        let remote = try ReviewDocument.parse(Data((content["text"] as! String).utf8))
-        XCTAssertEqual(remote.markers.count, 3); XCTAssertEqual(remote.mediaPath, "Corto 12.mov"); XCTAssertEqual(remote.cloudFolder, "")
-        XCTAssertTrue(mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"leer_revision\",\"arguments\":{\"video\":\"no existe\"}}}")!.contains("\"isError\":true"))
-        XCTAssertTrue(mcp.handle("{no es json")!.contains("-32700"))
-        XCTAssertTrue(mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"borrar\"}")!.contains("-32601"))
-    }
-
-    func testAiConfigMerges() throws {
-        let claude = try AiConnect.mergeClaudeConfig("{\"preferences\":{\"theme\":\"dark\"},\"mcpServers\":{\"otro\":{\"command\":\"x\"}}}", executable: "/Applications/Prisma.app/Contents/MacOS/Prisma")
-        let root = try JSON.parse(Data(claude.utf8)) as! [String: Any]
-        let servers = root["mcpServers"] as! [String: Any]
-        XCTAssertNotNil(root["preferences"]); XCTAssertNotNil(servers["otro"])
-        XCTAssertEqual((servers["prisma"] as! [String: Any])["command"] as? String, "/Applications/Prisma.app/Contents/MacOS/Prisma")
-        XCTAssertThrowsError(try AiConnect.mergeClaudeConfig("[1]", executable: "x"))
-        let toml = AiConnect.mergeChatGptConfig("model = \"gpt\"\n\n[mcp_servers.prisma]\ncommand = 'viejo'\n[mcp_servers.prisma.env]\nA = \"1\"\n\n[mcp_servers.otro]\ncommand = \"x\"\n", executable: "/Applications/Prisma.app/Contents/MacOS/Prisma")
-        XCTAssertTrue(toml.contains("model = \"gpt\"") && toml.contains("[mcp_servers.otro]") && !toml.contains("viejo") && !toml.contains("[mcp_servers.prisma.env]"))
-        XCTAssertTrue(toml.contains("command = '/Applications/Prisma.app/Contents/MacOS/Prisma'"))
-        XCTAssertEqual(AiConnect.mergeChatGptConfig(toml, executable: "/Applications/Prisma.app/Contents/MacOS/Prisma"), toml)
-        XCTAssertTrue(AiConnect.mergeChatGptConfig("", executable: "/Users/it's/Prisma").contains("command = \"/Users/it's/Prisma\""))
+        XCTAssertEqual(SyncDelivery.title(doc), "Ajustes Corto 12")
+        XCTAssertEqual(SyncDelivery.line(doc, doc.markers[0]), "00:02:26:09 se ha colado una \"n\" después de \"carro\"")
+        XCTAssertEqual(SyncDelivery.line(doc, doc.markers[1]), "00:04:16:01 Sonido: limpiamos este sonido / segunda línea")
+        XCTAssertEqual(SyncDelivery.line(doc, doc.markers[2]), "00:00:04:00 Música")
+        XCTAssertFalse(SyncDelivery.documentXML(doc).contains("/Users/ana"))
     }
 
     func testSyncDelivery() throws {
@@ -187,6 +160,10 @@ final class PrismaCoreTests: XCTestCase {
         let bytes = try Data(contentsOf: docx)
         XCTAssertEqual(Array(bytes.prefix(4)), [0x50, 0x4B, 0x03, 0x04])
         XCTAssertTrue(String(decoding: bytes, as: UTF8.self).contains("00:02:26:09 se ha colado una"))
+        let xml = SyncDelivery.documentXML(doc)
+        XCTAssertTrue(xml.contains("<w14:checkbox>"), "Una casilla por nota")
+        XCTAssertFalse(xml.contains("numId"), "Sin viñetas")
+        XCTAssertFalse(xml.contains("Nota 1"), "El título propuesto no pasa al documento")
         XCTAssertEqual(try ReviewDocument.load(json).markers.count, 3)
         let firstDate = try FileManager.default.attributesOfItem(atPath: docx.path)[.modificationDate] as! Date
         Thread.sleep(forTimeInterval: 1.1)
@@ -200,7 +177,6 @@ final class PrismaCoreTests: XCTestCase {
         XCTAssertEqual(edited.count, 1)
         XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent(edited[0]), encoding: .utf8), "editado en Google Docs")
         XCTAssertEqual(try ReviewDocument.load(json).markers.count, 4)
-        XCTAssertTrue(McpServer.document(doc).contains("entrega_automatica") && McpServer.document(doc).contains("«Revisiones»") && !McpServer.document(doc).contains(temp.path))
         XCTAssertFalse(try doc.sharingJSON().contains("Mi unidad"))
     }
 
