@@ -1,8 +1,8 @@
 # Prisma
 
-Reproductor y herramienta de revisión de vídeo para Windows de 64 bits, en español. Reproduce H.264, HEVC y ProRes estándar, incluidos formatos de 10 bits. Permite avanzar fotograma a fotograma, tomar notas con código de tiempo y exportar marcadores a DaVinci Resolve o Premiere mediante XML.
+Reproductor y herramienta de revisión de vídeo para Windows de 64 bits y Mac, en español. Reproduce H.264, HEVC y ProRes estándar, incluidos formatos de 10 bits. Permite avanzar fotograma a fotograma, tomar notas con código de tiempo y exportar marcadores a DaVinci Resolve o Premiere mediante XML.
 
-Prisma está basado en [mpv](https://mpv.io/). Usa libmpv como motor de reproducción, que a su vez decodifica con [FFmpeg](https://ffmpeg.org/) y muestra la imagen con [libplacebo](https://code.videolan.org/videolan/libplacebo). Prisma aporta la interfaz en español, la revisión fotograma a fotograma y las notas exportables. El motor se usa sin modificar, bajo su licencia GPL.
+En Windows, Prisma está basado en [mpv](https://mpv.io/). Usa libmpv como motor de reproducción, que a su vez decodifica con [FFmpeg](https://ffmpeg.org/) y muestra la imagen con [libplacebo](https://code.videolan.org/videolan/libplacebo). Prisma aporta la interfaz en español, la revisión fotograma a fotograma y las notas exportables. El motor se usa sin modificar, bajo su licencia GPL.
 
 La versión 0.3 renueva la interfaz oscura: controles vectoriales, tarjetas de revisión, editor de notas a panel completo y distribución compacta. Conserva el motor y el formato de las notas existentes.
 
@@ -14,9 +14,14 @@ La versión 0.5 añade el tamaño de imagen ajustable (rueda del ratón, Ctrl + 
 
 ## Descargar
 
-En [Releases](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest) hay un .zip listo para usar en Windows 10 u 11 de 64 bits. Descomprímelo en una carpeta propia, por ejemplo `Documentos\Prisma`, y abre `Prisma.exe`. Antes de abrirlo, puedes comprobar que el .zip es el publicado: en PowerShell, `Get-FileHash .\Prisma-*.zip` debe dar la huella SHA-256 que aparece en la versión.
+- **Windows 10 u 11 (64 bits):** [Descargar Prisma para Windows](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest/download/Prisma-Windows.zip)
+- **Mac (Apple Silicon e Intel, macOS 13 o posterior):** [Descargar Prisma para Mac](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest/download/Prisma-Mac.zip)
 
-Prisma no está firmado digitalmente, así que Windows SmartScreen puede avisar la primera vez. Pulsa «Más información» y «Ejecutar de todas formas» solo si la huella coincide.
+Los enlaces descargan siempre la última versión. Las anteriores y las huellas SHA-256 de cada descarga están en [Releases](https://github.com/WeiAnnStudio/prisma-video-player/releases).
+
+**Windows.** Descomprime el .zip en una carpeta propia, por ejemplo `Documentos\Prisma`, y abre `Prisma.exe`. Prisma no está firmado digitalmente, así que Windows SmartScreen puede avisar la primera vez: pulsa «Más información» y «Ejecutar de todas formas». Para comprobar que el .zip es el publicado, en PowerShell `Get-FileHash .\Prisma-Windows.zip` debe dar la huella que aparece en la versión.
+
+**Mac.** Abre el .zip y arrastra Prisma.app a Aplicaciones. Prisma no está firmado por Apple: la primera vez que lo abras, macOS lo bloquea. Ve a Ajustes del Sistema > Privacidad y seguridad y pulsa «Abrir igualmente» junto al aviso de Prisma. Solo hace falta una vez.
 
 ## Compilar y ejecutar
 
