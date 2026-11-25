@@ -1,4 +1,4 @@
-PRISMA 0.4 — REPRODUCTOR Y REVISOR DE VÍDEO
+PRISMA 0.5 — REPRODUCTOR Y REVISOR DE VÍDEO
 
 Abre Prisma.exe. Mantén libmpv-2.dll en la misma carpeta.
 Windows 10/11 de 64 bits, con .NET Framework 4.8.
@@ -32,6 +32,22 @@ Ctrl+O          Abrir vídeos. Ctrl+Mayús+O añade archivos a la lista.
 Ctrl+L          Lista de reproducción.
 ↑ / ↓           Subir / bajar volumen. Ctrl+Mayús+M silencia.
 F o F11         Pantalla completa. Esc vuelve a la ventana.
+
+TAMAÑO DE LA IMAGEN
+La imagen se ajusta a la ventana por defecto, también en pantalla completa.
+Rueda del ratón sobre el vídeo  Acercar / alejar alrededor del puntero.
+Ctrl + / Ctrl −  Acercar / alejar.   Ctrl+0  Ajustar a la ventana.   Ctrl+1  100 % (píxel a píxel).
+Con la imagen ampliada, arrástrala para moverla. Clic con la rueda: alterna entre ajustar y 100 %.
+El botón de tamaño (junto a la velocidad) muestra el valor actual y ofrece 50 %, 100 %, 200 % y 400 %.
+
+CÓDIGO DE TIEMPO
+Haz clic en el código de tiempo del reproductor: queda seleccionado para copiarlo con Ctrl+C,
+o escribe otro y pulsa Intro para ir a él (Esc cancela). Ctrl+G hace lo mismo y Ctrl+Mayús+C copia.
+Se aceptan, como en Premiere o DaVinci: 00:00:03:10, 3:10 (segundos:fotogramas), 310 (cifras desde
+la derecha) y +10 / -1:00 (avanzar o retroceder desde la posición actual).
+Al escribir una nota, «+ TC actual» o Ctrl+T inserta en el comentario el código de tiempo
+donde está el reproductor: mueve la reproducción y pulsa Ctrl+T para indicar, por ejemplo,
+«mover la entrada de este plano a 00:00:03:10».
 
 El retroceso continuo usa búsquedas exactas sin audio, para no almacenar grupos completos de fotogramas 4K en memoria.
 Puede verse a saltos, especialmente con H.264/H.265 exigentes. No equivale a una caché de edición de un NLE.
@@ -71,17 +87,16 @@ Enviar dos veces no duplica. Si un fotograma ya tiene marcador, la nota pasa al 
 Las posiciones cuentan desde el primer fotograma de la línea de tiempo: el render revisado debe empezar ahí.
 Con DaVinci Resolve gratuito no es posible: Prisma te ofrece exportar el XML y te explica cómo importarlo.
 
-TRABAJO EN EQUIPO CON LA NUBE Y LA IA
-En el panel de notas, pulsa «Carpeta en la nube». Cada vídeo recuerda la suya. Hay dos formas:
-
-AUTOMÁTICA (sin IA): «Elegir carpeta del equipo…» y escoge una carpeta que Google Drive, Dropbox
-u OneDrive sincronicen en este PC (por ejemplo G:\Mi unidad\Revisiones). Cada vez que cambias
-una nota, Prisma escribe ahí «Ajustes Corto 12.docx» y «Corto 12.prisma.json» y la nube los sube.
+TRABAJO EN EQUIPO CON GOOGLE DRIVE
+En el panel de notas, pulsa «Carpeta de Drive» y elige la carpeta de Google Drive del vídeo tal como
+aparece en el Explorador (por ejemplo G:\Mi unidad\Revisiones o una de Unidades compartidas).
+Cada vídeo recuerda la suya. También sirve una carpeta de Dropbox u OneDrive.
+Cada vez que cambias una nota, Prisma escribe ahí «Ajustes Corto 12.docx» y «Corto 12.prisma.json»
+y Google Drive para escritorio los sube.
+El documento tiene una casilla por nota (en Word se marca con un clic) con su código de tiempo y
+su texto. Si no cambiaste el título propuesto («Nota 3»), solo se copia el comentario.
 Si alguien editó el documento, su versión se conserva con otro nombre.
-
-CON IA: pega el enlace de la carpeta. Una sola vez: menú IA > Conectar con Claude o con ChatGPT
-y reinicia esa app (no pide contraseñas; activa en ella el conector de tu nube). Después pide en un
-chat: «Pasa a la nube las notas de Corto 12». Crea el Google Doc y el archivo .prisma.json.
+Prisma no se conecta a internet: solo escribe en esa carpeta de tu equipo.
 
 Quien edita abre el mismo render en su Prisma, pulsa Importar, elige el .prisma.json de la carpeta
 y después «Enviar a Resolve».
@@ -106,8 +121,6 @@ la ruta completa para enlazar el vídeo, y esa ruta puede mostrar tu usuario de 
 Revisa el XML antes de enviarlo a otras personas.
 En el CSV, las notas que empiezan por =, +, - o @ llevan un apóstrofo para que Excel no las ejecute.
 Guarda Prisma en una carpeta propia (por ejemplo, Documentos\Prisma), no en Descargas.
-La conexión con Claude o ChatGPT es de solo lectura: la IA ve el nombre del vídeo, los FPS, la carpeta
-asociada y el texto de las notas, nunca las rutas de tu equipo. Si mueves la carpeta de Prisma, vuelve a conectar.
 
 LICENCIAS Y CÓDIGO
 Código abierto GPL-3.0-o-posterior. Licencias y procedencia del motor en licencias/.
