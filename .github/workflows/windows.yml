@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Builds Prisma for Windows on GitHub's Windows machines with build.ps1 (engine with pinned
+# SHA-256) and keeps the ready-to-use zip, the same layout as the published versions.
+name: Prisma para Windows
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "build.ps1", "tools/prepare-engine.ps1", "Prisma/**", ".github/workflows/windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compilar Prisma.exe
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -OutputDirectory build\Prisma
+      - name: Preparar el zip
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = ([regex]::Match((Get-Content -Raw src\Program.cs), 'AssemblyVersion\("(\d+\.\d+\.\d+)')).Groups[1].Value
+          if (-not $version) { throw 'No se encuentra la versión en src\Program.cs' }
+          $out = 'build\Prisma'
+          Copy-Item Prisma\LEEME.txt, Prisma\Prisma.ico -Destination $out -Force
+          Copy-Item Prisma\licencias -Destination $out -Recurse -Force
+          $zip = "build\Prisma-$version-win64.zip"
+          Compress-Archive -Path $out -DestinationPath $zip -Force
+          Get-FileHash $zip, "$out\Prisma.exe", "$out\libmpv-2.dll" -Algorithm SHA256 | ForEach-Object { $_.Hash + '  ' + (Split-Path $_.Path -Leaf) } | Tee-Object build\SHA256.txt
+          Get-ChildItem $out -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+      - name: Guardar el zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prisma-windows
+          path: |
+            build/Prisma-*-win64.zip
+            build/SHA256.txt
