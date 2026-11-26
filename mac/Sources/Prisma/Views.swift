@@ -213,6 +213,18 @@ final class TimecodeField: NSTextField, NSTextFieldDelegate {
 
     override func resetCursorRects() { addCursorRect(bounds, cursor: NSCursor.iBeam) }
 
+    // Un solo clic basta: entra en edición con todo el código seleccionado.
+    // Sin esto, el clic recolocaba el cursor y deshacía la selección (hacían falta varios clics).
+    override func mouseDown(with event: NSEvent) {
+        if currentEditor() == nil {
+            guard canEdit?() ?? true else { return }
+            window?.makeFirstResponder(self)
+            currentEditor()?.selectAll(nil)
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
     override func becomeFirstResponder() -> Bool {
         guard canEdit?() ?? true else { return false }
         let ok = super.becomeFirstResponder()
