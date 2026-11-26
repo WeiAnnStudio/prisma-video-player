@@ -14,8 +14,9 @@ MPV="$(brew --prefix mpv)"
 rm -rf "$SALIDA"
 mkdir -p "$SALIDA/MacOS" "$SALIDA/Frameworks"
 
+# Sin -rpath: libmpv de Homebrew se identifica con su ruta completa y dylibbundler la reescribe.
 clang -O1 -o "$SALIDA/MacOS/probar-libmpv" probar-libmpv.c \
-  -I"$MPV/include" -L"$MPV/lib" -lmpv -Wl,-rpath,"$MPV/lib"
+  -I"$MPV/include" -L"$MPV/lib" -lmpv
 
 # -p: así verá cada librería a las demás una vez dentro de la app (Contents/Frameworks).
 dylibbundler -cd -of -b \
@@ -24,9 +25,18 @@ dylibbundler -cd -of -b \
   -p "@executable_path/../Frameworks/" \
   -s "$MPV/lib" -s "$(brew --prefix)/lib" | tee "$SALIDA/dylibbundler.log"
 
-# Quita la ruta de Homebrew que el compilador dejó en el programa: ya no hace falta y,
-# si se quedara, la prueba podría "hacer trampa" cargando librerías de fuera.
-install_name_tool -delete_rpath "$MPV/lib" "$SALIDA/MacOS/probar-libmpv" 2>/dev/null || true
+# macOS 15 se niega a abrir un programa o librería que tenga la misma ruta de búsqueda
+# (LC_RPATH) repetida: "Library not loaded ... duplicate LC_RPATH". Se deja una sola copia.
+quitar_rutas_repetidas() {
+  local fichero="$1" ruta
+  while ruta=$(otool -l "$fichero" | awk '/cmd LC_RPATH/{r=1} r && $1=="path"{print $2; r=0}' | sort | uniq -d | head -1); [ -n "$ruta" ]; do
+    echo "Ruta repetida quitada en $(basename "$fichero"): $ruta"
+    install_name_tool -delete_rpath "$ruta" "$fichero"
+  done
+}
+for f in "$SALIDA"/Frameworks/*.dylib "$SALIDA/MacOS/probar-libmpv"; do
+  quitar_rutas_repetidas "$f"
+done
 
 # Cambiar las rutas invalida las firmas: se firma de nuevo (firma local, sin cuenta de Apple).
 for f in "$SALIDA"/Frameworks/*.dylib "$SALIDA/MacOS/probar-libmpv"; do
