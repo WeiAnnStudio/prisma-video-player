@@ -11,7 +11,7 @@ command -v ffmpeg >/dev/null || brew install --quiet ffmpeg >/dev/null
 ffmpeg -loglevel error -y -f lavfi -i testsrc2=size=1920x1080:rate=25 -f lavfi -i sine=frequency=440:sample_rate=48000 \
   -t 10 -c:v prores_ks -profile:v 3 -pix_fmt yuv422p10le -c:a pcm_s16le "$CLIP"
 
-swiftc -target "$(uname -m)-apple-macos13.0" Sources/Prisma/MediaInfo.swift Tests/Smoke/CheckProRes.swift -o build/check-prores
+swiftc -target "$(uname -m)-apple-macos15.0" Sources/Prisma/MediaInfo.swift Tests/Smoke/CheckProRes.swift -o build/check-prores
 build/check-prores "$CLIP"
 
 DATA="$HOME/Library/Application Support/Prisma/marcadores"
