@@ -1,4 +1,4 @@
-PRISMA 0.5 — REPRODUCTOR Y REVISOR DE VÍDEO
+PRISMA 0.6 — REPRODUCTOR Y REVISOR DE VÍDEO
 
 Abre Prisma.exe. Mantén libmpv-2.dll en la misma carpeta.
 Windows 10/11 de 64 bits, con .NET Framework 4.8.
