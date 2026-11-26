@@ -1,7 +1,7 @@
 ## Descargar
 
 - **Windows 10 u 11 (64 bits):** [Prisma-Windows.zip](https://github.com/WeiAnnStudio/prisma-video-player/releases/download/v{{VERSION}}/Prisma-Windows.zip)
-- **Mac (Apple Silicon e Intel, macOS 13 o posterior):** [Prisma-Mac.zip](https://github.com/WeiAnnStudio/prisma-video-player/releases/download/v{{VERSION}}/Prisma-Mac.zip)
+- **Mac (macOS 15 o posterior; el AV1 solo en Macs con chip Apple):** [Prisma-Mac.zip](https://github.com/WeiAnnStudio/prisma-video-player/releases/download/v{{VERSION}}/Prisma-Mac.zip)
 
 ### Windows
 
@@ -19,6 +19,9 @@ Abre el zip y arrastra **Prisma.app** a la carpeta **Aplicaciones**. Prisma no e
 
 ### Novedades de la versión {{VERSION}}
 
+- Mac: se ven los vídeos AV1 en Macs con chip Apple (M1 o posterior) que no los decodifican con el sistema, gracias a un segundo motor (mpv) incluido. Con él la imagen es de 8 bits.
+- Mac: el código de tiempo se selecciona con un solo clic.
+- Mac: el mínimo pasa a ser macOS 15.
 - Tamaño de la imagen ajustable: rueda del ratón o pellizco, Ctrl/⌘ + y −, 100 % píxel a píxel, y arrastrar para moverla.
 - Código de tiempo en directo: clic para copiarlo o escribir otro y saltar (00:00:03:10, 3:10, 310, +10).
 - En las notas, «+ TC actual» (Ctrl+T / ⌘T) inserta el código de tiempo donde está el reproductor.
