@@ -58,5 +58,6 @@ cabecera = ("Motor de AV1 (solo Mac con chip Apple): libmpv con dav1d y FFmpeg, 
             "Librerías incluidas en Prisma.app/Contents/Frameworks (cada una con su licencia; la de Prisma es GPL-3.0-o-posterior):\n")
 open(f"{carpeta}/procedencia.txt", "w").write(cabecera + "\n".join(lineas) + "\n")
 PY
+cat "$SALIDA/procedencia.txt"
 rm -f "$SALIDA/MacOS/enlace"
 echo "Librerías incluidas: $(ls "$SALIDA/Frameworks" | wc -l | tr -d ' ')"
