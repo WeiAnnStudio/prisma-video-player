@@ -2,15 +2,16 @@ Primera versión de **Prisma para Mac**, para probar antes de publicarla como es
 
 ## Instalar
 
-1. Descarga `Prisma-0.5.0-mac.zip` y ábrelo. Arrastra **Prisma.app** a la carpeta **Aplicaciones**.
+1. Descarga `Prisma-0.6.0-mac.zip` y ábrelo. Arrastra **Prisma.app** a la carpeta **Aplicaciones**.
 2. Ábrelo con doble clic. macOS avisará de que no puede comprobar el desarrollador, porque Prisma no está firmado por Apple. Pulsa «Aceptar».
 3. Abre **Ajustes del Sistema > Privacidad y seguridad** y, abajo, pulsa **«Abrir igualmente»**. Solo hace falta la primera vez.
 
-Funciona en macOS 13 o posterior, en Apple Silicon y en Intel.
+Funciona en macOS 15 o posterior. El AV1 solo se reproduce en Apple Silicon (en M1 y M2 con el motor libmpv incluido; los Mac Intel reciben un aviso).
 
 ## Qué incluye
 
 - Reproducción con el motor de Apple: ProRes, HEVC y H.264, con 10 bits y HDR en pantallas XDR.
+- AV1: en M3 o posterior, con el motor de Apple; en M1 y M2, con libmpv (dav1d), incluido en la app.
 - Fotograma a fotograma, J/K/L hasta 16× y notas con código de tiempo (tecla M).
 - Las mismas notas que Prisma para Windows: `.prisma.json`, XML para DaVinci Resolve / Premiere y CSV.
 - Envío de las notas a la línea de tiempo abierta en DaVinci Resolve Studio (⇧⌘R).
