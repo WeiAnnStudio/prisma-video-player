@@ -4,7 +4,8 @@ import PackageDescription
 
 let package = Package(
     name: "Prisma",
-    platforms: [.macOS(.v13)],
+    // macOS 15: las librerías de libmpv (AV1) que lleva la app lo exigen.
+    platforms: [.macOS("15.0")],
     products: [.library(name: "PrismaCore", targets: ["PrismaCore"])],
     targets: [
         // Formats, Resolve and synced-folder delivery: no UI, also builds and tests on Linux.
