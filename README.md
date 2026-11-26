@@ -1,8 +1,10 @@
 # Prisma
 
-Reproductor y herramienta de revisión de vídeo para Windows de 64 bits y Mac, en español. Reproduce H.264, HEVC y ProRes estándar, incluidos formatos de 10 bits. Permite avanzar fotograma a fotograma, tomar notas con código de tiempo y exportar marcadores a DaVinci Resolve o Premiere mediante XML.
+Reproductor y herramienta de revisión de vídeo para Windows de 64 bits y Mac, en español. Reproduce H.264, HEVC y ProRes estándar, incluidos formatos de 10 bits, y AV1 en Mac con chip Apple. Permite avanzar fotograma a fotograma, tomar notas con código de tiempo y exportar marcadores a DaVinci Resolve o Premiere mediante XML.
 
 En Windows, Prisma está basado en [mpv](https://mpv.io/). Usa libmpv como motor de reproducción, que a su vez decodifica con [FFmpeg](https://ffmpeg.org/) y muestra la imagen con [libplacebo](https://code.videolan.org/videolan/libplacebo). Prisma aporta la interfaz en español, la revisión fotograma a fotograma y las notas exportables. El motor se usa sin modificar, bajo su licencia GPL.
+
+En Mac, Prisma usa el motor de Apple (AVFoundation) para ProRes, HEVC y H.264. Solo cuando abre un vídeo AV1 que el Mac no decodifica (M1 y M2) pasa a libmpv con [dav1d](https://code.videolan.org/videolan/dav1d) y FFmpeg, que van dentro de la app. Los botones, la barra de tiempo, las notas, el zoom y el código de tiempo funcionan igual con los dos motores. Los Mac con procesador Intel no pueden reproducir AV1 y Prisma lo explica. Con libmpv la imagen se dibuja en 8 bits por color.
 
 La versión 0.3 renueva la interfaz oscura: controles vectoriales, tarjetas de revisión, editor de notas a panel completo y distribución compacta. Conserva el motor y el formato de las notas existentes.
 
@@ -12,10 +14,12 @@ La versión 0.4 está pensada para revisar en equipo: envía las notas a la lín
 
 La versión 0.5 añade el tamaño de imagen ajustable (rueda del ratón, Ctrl + / Ctrl −, 100 % píxel a píxel), un código de tiempo que sigue en directo a la barra y que se puede copiar o escribir para saltar, y la inserción del código de tiempo en las notas (Ctrl+T). El documento de ajustes lleva una casilla por nota y omite los títulos «Nota N» sin cambiar. Desaparece la conexión con Claude y ChatGPT: las notas llegan a la nube solo a través de la carpeta de Google Drive sincronizada en el equipo.
 
+La versión 0.6 reproduce AV1 en Mac con chip Apple: el motor de Apple lo usa si el chip lo decodifica (M3 o posterior) y, si no (M1 y M2), Prisma pasa solo a libmpv con dav1d, incluido en la app. Sube el mínimo a macOS 15 y arregla el clic en el código de tiempo en Mac, que ahora selecciona todo el código con un solo clic.
+
 ## Descargar
 
 - **Windows 10 u 11 (64 bits):** [Descargar Prisma para Windows](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest/download/Prisma-Windows.zip)
-- **Mac (Apple Silicon e Intel, macOS 13 o posterior):** [Descargar Prisma para Mac](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest/download/Prisma-Mac.zip)
+- **Mac (macOS 15 o posterior; AV1 solo en Mac con chip Apple):** [Descargar Prisma para Mac](https://github.com/WeiAnnStudio/prisma-video-player/releases/latest/download/Prisma-Mac.zip)
 
 Los enlaces descargan siempre la última versión. Las anteriores y las huellas SHA-256 de cada descarga están en [Releases](https://github.com/WeiAnnStudio/prisma-video-player/releases).
 
@@ -87,6 +91,8 @@ La importación del XML generado por las pruebas se verificó en DaVinci Resolve
 
 Prisma no se conecta a internet, no envía datos de uso y no contiene servidores ni telemetría. La única descarga ocurre al compilar: `build.ps1` obtiene libmpv de una URL fija y rechaza el archivo si su SHA-256 no coincide con el publicado. Además, comprueba la huella de `libmpv-2.dll` antes de copiarla.
 
+En Mac, la compilación instala mpv y dylibbundler con Homebrew (GitHub Actions) y copia libmpv y sus librerías dentro de la app; no se descarga nada al usarla. Cada versión incluye `licencias/PROCEDENCIA-Mac.txt` con las versiones y licencias de esas librerías. La app lleva la firma local de siempre, con una excepción de macOS (`disable-library-validation`) necesaria para cargar esas librerías.
+
 Protecciones en el reproductor:
 
 - Solo abre los archivos que eliges, arrastras o recuperas de recientes, y siempre que existan. El motor no sigue referencias internas: listas M3U, montajes EDL y CUE, manifiestos HLS, archivos comprimidos ni capítulos enlazados. Un archivo malicioso no puede revelar tu IP abriendo una dirección de red ni enviar credenciales de Windows a una carpeta compartida remota.
@@ -107,7 +113,7 @@ Prisma no está firmado digitalmente. Compílalo desde este código o comprueba 
 
 Puedes abrir una incidencia para proponer una mejora o comunicar un problema. Los fallos de seguridad se comunican de forma privada, según [SECURITY.md](SECURITY.md). Para enviar código, crea un fork y abre una pull request con una descripción del cambio y de las pruebas que ejecutaste. Si adjuntas ejemplos, usa vídeos sintéticos y revisa las rutas y notas de los archivos exportados.
 
-Prisma se publica bajo la [GPL-3.0 o posterior](LICENSE.txt). La [procedencia de libmpv](Prisma/licencias/PROCEDENCIA.txt) identifica el motor que descarga la compilación y sus licencias.
+Prisma se publica bajo la [GPL-3.0 o posterior](LICENSE.txt). La [procedencia de libmpv](Prisma/licencias/PROCEDENCIA.txt) identifica el motor que descarga la compilación y sus licencias. En Mac, `PROCEDENCIA-Mac.txt` (dentro del zip) lista libmpv, FFmpeg, dav1d y el resto de librerías incluidas, con su versión, licencia y código fuente.
 
 ## Referencias
 

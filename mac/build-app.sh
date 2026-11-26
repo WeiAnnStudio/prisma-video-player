@@ -1,11 +1,12 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Builds Prisma.app (Apple Silicon + Intel) and Prisma-<version>-mac.zip. Runs on macOS 13+ with Xcode.
+# Builds Prisma.app (Apple Silicon + Intel) and Prisma-<version>-mac.zip. Runs on macOS 15+ with Xcode
+# and Homebrew (mpv, dylibbundler): libmpv plays the AV1 that the Mac cannot decode (Apple Silicon only).
 # The app is signed ad hoc (no Apple account): the first time, macOS asks for permission in
 # System Settings > Privacy & Security > "Open Anyway".
 set -euo pipefail
 cd "$(dirname "$0")"
-VERSION="${PRISMA_VERSION:-0.5.0}"
+VERSION="${PRISMA_VERSION:-0.6.0}"
 OUT=build
 APP="$OUT/Prisma/Prisma.app"
 
@@ -17,6 +18,11 @@ lipo -info "$BIN"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Prisma"
 cp ../src/prisma_resolve.lua "$APP/Contents/Resources/prisma_resolve.lua"
+
+# libmpv and its libraries (ffmpeg, dav1d...) into Contents/Frameworks, with their provenance.
+bash empaquetar-mpv.sh "$OUT/mpv"
+mkdir -p "$APP/Contents/Frameworks"
+cp "$OUT/mpv/Frameworks/"*.dylib "$APP/Contents/Frameworks/"
 
 # Icon from mac/AppIcon.png (1024 px), drawn by tools/make-mac-icon.py if it is not there.
 if [ ! -f AppIcon.png ]; then
@@ -47,7 +53,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -73,7 +79,7 @@ PLIST
 plutil -lint "$APP/Contents/Info.plist"
 
 # Ad hoc signature with the hardened runtime (required on Apple Silicon; no Apple account).
-codesign --force --deep --options runtime --timestamp=none --sign - "$APP"
+codesign --force --deep --options runtime --entitlements Prisma.entitlements --timestamp=none --sign - "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 
 # Smoke test: an old Claude / ChatGPT entry ("Prisma --mcp") ends at once, without a window.
@@ -83,5 +89,7 @@ echo "--mcp ya no abre nada: OK"
 cp LEEME-Mac.txt "$OUT/Prisma/LEEME.txt"
 mkdir -p "$OUT/Prisma/licencias"
 cp ../LICENSE.txt "$OUT/Prisma/licencias/Prisma-GPL-3.0.txt"
+cp "$OUT/mpv/procedencia.txt" "$OUT/Prisma/licencias/PROCEDENCIA-Mac.txt"
 ditto -c -k --sequesterRsrc --keepParent "$OUT/Prisma" "$OUT/Prisma-$VERSION-mac.zip"
 shasum -a 256 "$OUT/Prisma-$VERSION-mac.zip" "$APP/Contents/MacOS/Prisma" | tee "$OUT/SHA256.txt"
+echo "Tamaño del zip: $(du -h "$OUT/Prisma-$VERSION-mac.zip" | cut -f1)"

@@ -1,8 +1,8 @@
-PRISMA 0.5 PARA MAC — REPRODUCTOR Y REVISOR DE VÍDEO
+PRISMA 0.6 PARA MAC — REPRODUCTOR Y REVISOR DE VÍDEO
 
 Prisma reproduce vídeo y permite revisar fotograma a fotograma con notas de código de tiempo.
 Las notas son las mismas que en Prisma para Windows: un Mac y un PC pueden intercambiarlas.
-Funciona en macOS 13 Ventura o posterior, en Mac con Apple Silicon (M1, M2, M3, M4...) y con Intel.
+Funciona en macOS 15 Sequoia o posterior. El AV1 solo se reproduce en Mac con Apple Silicon (M1, M2, M3, M4...).
 
 INSTALAR (UNA SOLA VEZ)
 1. Arrastra Prisma.app a la carpeta Aplicaciones.
@@ -21,6 +21,10 @@ Si abres varios a la vez, forman una lista de reproducción (menú Reproducción
 Usa el motor de vídeo de Apple: ProRes (422, HQ, 4444, XQ), HEVC y H.264, incluidos 10 y 12 bits.
 El HDR se ve con rango extendido en pantallas compatibles (Liquid Retina XDR, Pro Display XDR...).
 ProRes RAW, MXF y los formatos que macOS no reproduce no están incluidos en la versión de Mac.
+AV1 (MP4 o MOV): los chips M3 y posteriores lo decodifican con el motor de Apple. En un M1 o M2 Prisma
+usa automáticamente su motor AV1 (libmpv con dav1d), más lento pero con la misma interfaz, notas y
+código de tiempo. Los Mac con procesador Intel no pueden reproducir AV1 y Prisma lo avisa. Con el motor
+AV1 la imagen se muestra en 8 bits por color, aunque el vídeo de 10 bits se decodifica entero.
 
 ATAJOS
 Espacio  reproducir / pausar          ← / →  fotograma anterior / siguiente

@@ -8,9 +8,11 @@ import PrismaCore
 
 final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenuDelegate {
     let root = RootView(frame: NSRect(x: 0, y: 0, width: 1280, height: 760))
-    let videoView = VideoView()
-    lazy var stage = VideoStage(video: videoView)
-    let player = AVPlayer()
+    // Dos motores: el de Apple para casi todo y libmpv solo para el AV1 que el Mac no decodifica.
+    private let avEngine = AVFoundationEngine()
+    private var mpvEngine: MpvEngine?
+    private(set) lazy var engine: PlaybackEngine = avEngine
+    lazy var stage = VideoStage(video: avEngine.view)
     let notesPanel = NotesPanel(frame: .zero)
     let summary = OverlayLabel(frame: .zero)
     private let bar = FlippedView()
@@ -38,10 +40,6 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     private var shuttle = Shuttle()
     private var reverseTimer: Timer?
     private var reverseSeeking = false
-    private var timeObserver: Any?
-    private var endObserver: NSObjectProtocol?
-    private var statusObserver: NSKeyValueObservation?
-    private var rateObserver: NSKeyValueObservation?
     private var loadToken = 0
     private var noticeClear: DispatchWorkItem?
 
@@ -66,10 +64,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     // MARK: Layout
 
     private func build() {
-        videoView.player = player
-        videoView.controlsStyle = .none
-        videoView.wantsLayer = true
-        videoView.layer?.backgroundColor = Theme.video.cgColor
+        wire(avEngine)
         stage.onDoubleClick = { [weak self] in self?.toggleFullscreen() }
         stage.onClick = { [weak self] in self?.window?.makeFirstResponder(self?.root) }
         stage.onZoomChanged = { [weak self] label in
@@ -87,10 +82,8 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
             guard let self, let review = self.review else { return "" }
             return review.timecode(self.currentFrame)
         }
-        player.actionAtItemEnd = .pause
-        player.preventsDisplaySleepDuringVideoPlayback = true
         let saved = UserDefaults.standard.object(forKey: "volumen") as? Double ?? 1
-        player.volume = Float(saved); volume.doubleValue = saved
+        engine.volume = saved; volume.doubleValue = saved
         volume.target = self; volume.action = #selector(volumeChanged)
         volume.controlSize = .small
         speaker.image = NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: "Volumen")
@@ -115,8 +108,6 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         notesPanel.onCloud = { [weak self] in self?.editCloudFolder() }
         notesPanel.onResolve = { [weak self] in self?.sendToResolve() }
 
-        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 30), queue: .main) { [weak self] _ in self?.updateTime() }
-        rateObserver = player.observe(\.rate, options: [.new]) { [weak self] _, _ in DispatchQueue.main.async { self?.updatePlayButton() } }
         // The notes panel and the summary stay as the user left them.
         notesShown = UserDefaults.standard.bool(forKey: "mostrarNotas")
         notesButton.active = notesShown
@@ -218,15 +209,9 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         loadToken += 1
         let token = loadToken
         pauseShuttle()
+        use(avEngine)            // cada vídeo empieza en el motor de Apple; si hace falta, se cambia abajo
+        engine.load(url)
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
-        let item = AVPlayerItem(asset: asset)
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in self?.itemEnded() }
-        statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-            guard item.status == .failed else { return }
-            DispatchQueue.main.async { self?.notice("No se pudo reproducir: " + (item.error?.localizedDescription ?? "formato no compatible"), error: true) }
-        }
-        player.replaceCurrentItem(with: item)
         window?.title = url.lastPathComponent
         window?.representedURL = url
         review = nil; reviewURL = nil
@@ -238,16 +223,58 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
             do {
                 let media = try await MediaInfo.load(asset)
                 guard token == self.loadToken else { return }
+                let decision = await EngineChooser.decide(asset, media)
+                guard token == self.loadToken else { return }
+                var autoplay = true
+                switch decision {
+                case .apple: break
+                case .mpv: if !self.switchToMpv(url) { return }
+                case .unsupported(let message):
+                    // Sin esto sonaría solo el audio con la imagen en negro, como en Prisma 0.5.0.
+                    autoplay = false
+                    self.notice("Este Mac no puede reproducir este vídeo AV1.", error: true)
+                    Dialogs.message("Este vídeo no se puede reproducir", message)
+                }
                 self.info = media
                 self.stage.naturalSize = CGSize(width: media.width, height: media.height)
                 self.setUpReview(url, media)
-                self.player.rate = 1
+                if autoplay { self.engine.rate = 1 }
                 self.updateSummary()
             } catch {
                 guard token == self.loadToken else { return }
                 self.notice("No se pudo abrir «\(url.lastPathComponent)»: \(error.localizedDescription)", error: true)
             }
         }
+    }
+
+    // Conecta un motor con la ventana: sus avisos actualizan el tiempo, el botón de reproducir y la lista.
+    private func wire(_ engine: PlaybackEngine) {
+        engine.onTick = { [weak self] in self?.updateTime() }
+        engine.onEnded = { [weak self] in self?.itemEnded() }
+        engine.onRateChanged = { [weak self] in self?.updatePlayButton() }
+        engine.onFailed = { [weak self] message in self?.notice("No se pudo reproducir: " + message, error: true) }
+    }
+
+    // Cambia el motor activo, conservando el volumen y el silencio que había.
+    private func use(_ next: PlaybackEngine) {
+        guard next !== engine else { return }
+        next.volume = engine.volume
+        next.isMuted = engine.isMuted
+        engine.unload()
+        stage.setVideo(next.view)
+        engine = next
+    }
+
+    // AV1 que el Mac no decodifica: lo reproduce libmpv. false si libmpv no arranca.
+    private func switchToMpv(_ url: URL) -> Bool {
+        if mpvEngine == nil, let created = MpvEngine() { wire(created); mpvEngine = created }
+        guard let mpv = mpvEngine else {
+            notice("No se pudo iniciar el motor AV1 de Prisma. Vuelve a descargar Prisma.", error: true)
+            return false
+        }
+        use(mpv)
+        mpv.load(url)
+        return true
     }
 
     private func setUpReview(_ url: URL, _ media: MediaInfo) {
@@ -291,7 +318,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
     var currentFrame: Int64 {
         guard let review else { return 0 }
-        let t = player.currentTime().seconds
+        let t = engine.seconds
         guard t.isFinite else { return 0 }
         return max(0, min(review.durationFrames - 1, Int64((t * review.fps).rounded())))
     }
@@ -299,12 +326,12 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     func seek(frame: Int64) {
         guard let review else { return }
         let time = CMTime(value: frame * Int64(review.fpsDenominator), timescale: CMTimeScale(review.fpsNumerator))
-        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        engine.seek(to: time, exact: true, completion: nil)
     }
 
     private func seek(fraction: Double, exact: Bool) {
-        guard let item = player.currentItem else { return }
-        let duration = item.duration.seconds
+        guard engine.hasMedia else { return }
+        let duration = engine.duration
         guard duration.isFinite, duration > 0 else { return }
         pauseShuttle()
         if let review, exact {
@@ -313,52 +340,50 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
             if !timecodeField.isTyping { timecodeField.stringValue = review.timecode(target) }
             return
         } else {
-            let tolerance = exact ? CMTime.zero : CMTime(value: 1, timescale: 10)
-            player.seek(to: CMTime(seconds: fraction * duration, preferredTimescale: 600), toleranceBefore: tolerance, toleranceAfter: tolerance)
+            engine.seek(to: CMTime(seconds: fraction * duration, preferredTimescale: 600), exact: exact, completion: nil)
         }
         updateTime()   // while dragging, the timecode shows the frame under the mouse at once
     }
 
     func seekRelative(_ seconds: Double) {
         pauseShuttle()
-        let target = max(0, player.currentTime().seconds + seconds)
-        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        let target = max(0, engine.seconds + seconds)
+        engine.seek(to: CMTime(seconds: target, preferredTimescale: 600), exact: true, completion: nil)
     }
 
     func togglePlay() {
-        guard let item = player.currentItem else { chooseFiles(append: false); return }
-        if player.rate != 0 || reverseTimer != nil { pauseShuttle(); return }
-        if item.duration.isNumeric && player.currentTime() >= item.duration - CMTime(value: 1, timescale: 30) {
-            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+        guard engine.hasMedia else { chooseFiles(append: false); return }
+        if engine.rate != 0 || reverseTimer != nil { pauseShuttle(); return }
+        let duration = engine.duration
+        if duration.isFinite && engine.seconds >= duration - 1.0 / 30 {
+            engine.seek(to: .zero, exact: true, completion: nil)
         }
         shuttle.rate = 0
-        player.rate = 1
+        engine.rate = 1
     }
 
     func step(_ direction: Int) {
-        guard let item = player.currentItem else { return }
+        guard engine.hasMedia else { return }
         pauseShuttle()
-        item.step(byCount: direction)
+        engine.step(direction)
     }
 
     func pauseShuttle() {
         shuttle.rate = 0
         reverseTimer?.invalidate(); reverseTimer = nil
-        player.pause()
+        engine.pause()
     }
 
     // J / L: doubles speed up to 16×; the opposite key slows down and reverses. Shift: half speed.
     func startShuttle(_ direction: Int, slow: Bool) {
-        guard let item = player.currentItem else { return }
+        guard engine.hasMedia else { return }
         let rate = slow ? Double(direction) * 0.5 : shuttle.press(direction)
         shuttle.rate = rate
         reverseTimer?.invalidate(); reverseTimer = nil
         if rate < 0 {
-            let native = rate > -1 ? item.canPlaySlowReverse : (rate == -1 ? item.canPlayReverse : item.canPlayFastReverse)
-            if native { player.rate = Float(rate) } else { player.pause(); startReverseTimer(rate) }
+            if engine.supportsNative(rate: rate) { engine.rate = rate } else { engine.pause(); startReverseTimer(rate) }
         } else {
-            let native = rate < 1 ? item.canPlaySlowForward : (rate <= 2 ? true : item.canPlayFastForward)
-            player.rate = native ? Float(rate) : 2
+            engine.rate = engine.supportsNative(rate: rate) ? rate : 2
         }
         notice(rate < 0 ? "Retroceso \(speedText(rate))" : "Avance \(speedText(rate))")
     }
@@ -373,16 +398,14 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         let interval = 1.0 / 12
         reverseTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             guard let self, !self.reverseSeeking else { return }
-            let target = self.player.currentTime().seconds + rate * interval
-            if target <= 0 { self.pauseShuttle(); self.player.seek(to: .zero); return }
+            let target = self.engine.seconds + rate * interval
+            if target <= 0 { self.pauseShuttle(); self.engine.seek(to: .zero, exact: true, completion: nil); return }
             self.reverseSeeking = true
-            self.player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { _ in
-                DispatchQueue.main.async { self.reverseSeeking = false }
-            }
+            self.engine.seek(to: CMTime(seconds: target, preferredTimescale: 600), exact: true) { self.reverseSeeking = false }
         }
     }
 
-    func stop() { pauseShuttle(); player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) }
+    func stop() { pauseShuttle(); engine.seek(to: .zero, exact: true, completion: nil) }
 
     func changeVolume(_ delta: Double) {
         volume.doubleValue = min(1, max(0, volume.doubleValue + delta))
@@ -391,20 +414,20 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     }
 
     @objc private func volumeChanged() {
-        player.volume = Float(volume.doubleValue)
+        engine.volume = volume.doubleValue
         UserDefaults.standard.set(volume.doubleValue, forKey: "volumen")
     }
 
     func toggleMute() {
-        player.isMuted.toggle()
-        speaker.image = NSImage(systemSymbolName: player.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill", accessibilityDescription: "Volumen")
-        notice(player.isMuted ? "Silenciado" : "Sonido activado")
+        engine.isMuted.toggle()
+        speaker.image = NSImage(systemSymbolName: engine.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill", accessibilityDescription: "Volumen")
+        notice(engine.isMuted ? "Silenciado" : "Sonido activado")
     }
 
     func toggleFullscreen() { window?.toggleFullScreen(nil) }
 
     private func updatePlayButton() {
-        let playing = player.rate != 0 || reverseTimer != nil
+        let playing = engine.rate != 0 || reverseTimer != nil
         playButton.image = NSImage(systemSymbolName: playing ? "pause.fill" : "play.fill", accessibilityDescription: playing ? "Pausar" : "Reproducir")
     }
 
@@ -415,15 +438,15 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     }
 
     private func updateTime() {
-        let now = player.currentTime().seconds
-        let duration = player.currentItem?.duration.seconds ?? .nan
+        let now = engine.seconds
+        let duration = engine.duration
         if let review {
             let frame = seekBar.dragging ? min(review.durationFrames - 1, max(0, Int64((seekBar.progress * Double(review.durationFrames)).rounded(.down)))) : currentFrame
             if !timecodeField.isTyping { timecodeField.stringValue = review.timecode(frame) }
         } else if !timecodeField.isTyping {
             timecodeField.stringValue = "--:--:--:--"
         }
-        timeLabel.stringValue = player.currentItem == nil ? "" : clock(now) + " / " + clock(duration)
+        timeLabel.stringValue = !engine.hasMedia ? "" : clock(now) + " / " + clock(duration)
         if duration.isFinite && duration > 0 && !seekBar.dragging { seekBar.progress = now / duration }
         if summaryShown { updateSummary() }
         updatePlayButton()
@@ -446,7 +469,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         case 124: shift ? seekRelative(5) : step(1); return true
         case 126: changeVolume(0.05); return true
         case 125: changeVolume(-0.05); return true
-        case 115: pauseShuttle(); player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero); return true
+        case 115: pauseShuttle(); engine.seek(to: .zero, exact: true, completion: nil); return true
         case 53:
             if window?.styleMask.contains(.fullScreen) == true { toggleFullscreen(); return true }
             if summaryShown { toggleSummary(); return true }
@@ -596,7 +619,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     }
 
     func summaryText() -> String {
-        guard let url = player.currentItem.flatMap({ ($0.asset as? AVURLAsset)?.url }) else { return "Ningún vídeo abierto" }
+        guard let url = engine.url else { return "Ningún vídeo abierto" }
         var lines = [url.lastPathComponent]
         var line2 = info.codec.isEmpty ? "Códec no indicado" : info.codec
         if !info.depthLabel.isEmpty { line2 += " · " + info.depthLabel }
@@ -659,7 +682,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
 
     func windowWillClose(_ notification: Notification) {
         notesPanel.commitEdit()
-        player.pause()
+        engine.pause()
     }
 
     func windowDidResize(_ notification: Notification) { layoutPlayer() }

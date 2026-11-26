@@ -7,7 +7,7 @@ using System.Windows.Forms;
 using System.Reflection;
 [assembly: AssemblyTitle("Prisma")]
 [assembly: AssemblyDescription("Reproductor de vídeo para Windows")]
-[assembly: AssemblyVersion("0.5.0.0")]
+[assembly: AssemblyVersion("0.6.0.0")]
 
 namespace Prisma
 {

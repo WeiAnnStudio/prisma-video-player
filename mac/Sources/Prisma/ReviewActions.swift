@@ -179,7 +179,7 @@ extension PlayerWindowController {
     // MARK: Information
 
     func showInfo() {
-        guard let url = player.currentItem.flatMap({ ($0.asset as? AVURLAsset)?.url }) else { notice("Abre un vídeo para consultar su información."); return }
+        guard let url = engine.url else { notice("Abre un vídeo para consultar su información."); return }
         var d = "ARCHIVO\n\(url.path)\n\n"
         d += "Vídeo: \(info.codec.isEmpty ? "No indicado" : info.codec) (\(info.fourCC))\nResolución: \(info.width) × \(info.height)\n"
         d += "Profundidad de color: \(info.depthLabel.isEmpty ? "No indicada" : info.depthLabel)\n"

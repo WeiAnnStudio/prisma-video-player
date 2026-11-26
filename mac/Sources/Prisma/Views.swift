@@ -55,7 +55,7 @@ final class VideoView: AVPlayerView {
 // Holds the video and sets the size of the image: fitted to the view by default, or zoomed
 // (mouse wheel, pinch, ⌘+ / ⌘−, the zoom button) and moved by dragging when it is larger.
 final class VideoStage: NSView {
-    let video: VideoView
+    private(set) var video: NSView
     var onClick: (() -> Void)?
     var onDoubleClick: (() -> Void)?
     var onZoomChanged: ((String) -> Void)?
@@ -69,7 +69,7 @@ final class VideoStage: NSView {
     private var panStart = CGPoint.zero
     static let maxPixels: CGFloat = 16000     // largest view AVPlayerView is asked to draw
 
-    init(video: VideoView) {
+    init(video: NSView) {
         self.video = video
         super.init(frame: .zero)
         wantsLayer = true
@@ -78,6 +78,15 @@ final class VideoStage: NSView {
         addSubview(video)
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Cambia la vista del vídeo cuando se cambia de motor de reproducción.
+    func setVideo(_ view: NSView) {
+        guard view !== video else { return }
+        video.removeFromSuperview()
+        video = view
+        addSubview(view)
+        layoutVideo()
+    }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { false }
@@ -203,6 +212,18 @@ final class TimecodeField: NSTextField, NSTextFieldDelegate {
     }
 
     override func resetCursorRects() { addCursorRect(bounds, cursor: NSCursor.iBeam) }
+
+    // Un solo clic basta: entra en edición con todo el código seleccionado.
+    // Sin esto, el clic recolocaba el cursor y deshacía la selección (hacían falta varios clics).
+    override func mouseDown(with event: NSEvent) {
+        if currentEditor() == nil {
+            guard canEdit?() ?? true else { return }
+            window?.makeFirstResponder(self)
+            currentEditor()?.selectAll(nil)
+            return
+        }
+        super.mouseDown(with: event)
+    }
 
     override func becomeFirstResponder() -> Bool {
         guard canEdit?() ?? true else { return false }

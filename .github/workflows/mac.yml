@@ -26,6 +26,8 @@ jobs:
           persist-credentials: false
       - name: Versión de Swift
         run: swift --version
+      - name: Instalar libmpv (motor del AV1) y dylibbundler
+        run: brew install --quiet mpv dylibbundler
       - name: Pruebas
         working-directory: mac
         run: swift test
@@ -33,6 +35,8 @@ jobs:
         run: bash mac/build-app.sh
       - name: Abrir la app con un vídeo de prueba
         run: bash mac/smoke-test.sh
+      - name: Abrir un AV1 de 10 bits con libmpv
+        run: bash mac/smoke-test-av1.sh
       - name: Guardar el zip
         uses: actions/upload-artifact@v4
         with:
@@ -41,3 +45,4 @@ jobs:
             mac/build/Prisma-*-mac.zip
             mac/build/SHA256.txt
             mac/build/captura.jpg
+            mac/build/mpv/procedencia.txt
