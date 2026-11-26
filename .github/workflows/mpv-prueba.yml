@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   mpv:
-    runs-on: macos-14          # Apple Silicon (M1)
+    runs-on: macos-15          # Apple Silicon (M1)
     timeout-minutes: 40
     env:
       CARPETA: ${{ github.workspace }}/mpv-empaquetado
