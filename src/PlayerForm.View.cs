@@ -2,6 +2,7 @@
 using System;
 using System.Drawing;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Prisma
@@ -13,6 +14,10 @@ namespace Prisma
         private const int WheelMessage = 0x020A;
         private readonly FlatButton zoomButton = new FlatButton("Ajustar", "Tamaño de la imagen", false);
         private readonly TextBox timecodeBox = new TextBox();
+        // La cajita del código de tiempo: un hueco más oscuro con borde de color, como en DaVinci o Premiere.
+        private readonly SurfacePanel timecodeFrame = new SurfacePanel { Highlight = true };
+        private const int SetCueBanner = 0x1501;   // EM_SETCUEBANNER: texto gris de fondo en un cuadro vacío
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr SendMessage(IntPtr handle, int message, IntPtr wParam, string lParam);
         private readonly ContextMenuStrip timecodeMenu = new ContextMenuStrip { Renderer = new DarkRenderer() };
         // zoomScale: screen pixels per video pixel (1 = 100 %, pixel for pixel). Pan: fraction
         // of the displayed video, as libmpv's video-pan-x / video-pan-y.
@@ -24,13 +29,13 @@ namespace Prisma
         private void InitializeView()
         {
             zoomButton.Outlined = true;
-            transport.Controls.Add(zoomButton); transport.Controls.Add(timecodeBox);
+            transport.Controls.Add(zoomButton); transport.Controls.Add(timecodeFrame); timecodeFrame.Controls.Add(timecodeBox);
             tips.SetToolTip(zoomButton, "Tamaño de la imagen · Rueda del ratón sobre el vídeo, Ctrl + / Ctrl − · Ctrl+0 ajustar · Ctrl+1 al 100 %");
             zoomButton.Click += delegate { ShowZoomMenu(); };
-            timecodeBox.Visible = false; timecodeBox.BorderStyle = BorderStyle.FixedSingle; timecodeBox.Font = new Font("Consolas", 10);
-            timecodeBox.BackColor = Theme.Card; timecodeBox.ForeColor = Theme.Ink; timecodeBox.MaxLength = 16; timecodeBox.AccessibleName = "Código de tiempo";
+            timecodeFrame.Visible = false; timecodeBox.BorderStyle = BorderStyle.None; timecodeBox.Font = new Font("Consolas", 11);
+            timecodeBox.BackColor = Theme.Background; timecodeBox.ForeColor = Theme.Ink; timecodeBox.MaxLength = 16; timecodeBox.AccessibleName = "Código de tiempo";
             timecodeBox.Leave += delegate { EndTimecodeEdit(); };
-            time.Cursor = Cursors.IBeam; time.AccessibleName = "Código de tiempo. Clic para copiarlo o escribir otro";
+            time.Cursor = Cursors.IBeam; time.AccessibleName = "Código de tiempo. Clic para escribir +200, -30 u otro código y saltar";
             time.MouseUp += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) BeginTimecodeEdit(); };
             timecodeMenu.Items.Add(Item("Copiar código de tiempo    Ctrl+Mayús+C", CopyTimecode));
             timecodeMenu.Items.Add(Item("Ir a un código de tiempo…    Ctrl+G", BeginTimecodeEdit));
@@ -173,7 +178,7 @@ namespace Prisma
             if (engine == null || duration <= 0) return;
             double target = fraction * duration;
             if (review != null) time.Text = review.Timecode(FrameAt(target)); else time.Text = Clock(target) + " / " + Clock(duration);
-            PauseShuttle(); stopped = false;
+            StopReverseShuttle(); stopped = false;
             if (!engine.Flag("seeking")) engine.Command("seek", P(review != null ? FrameAt(target) / review.Fps : target), "absolute+exact");
         }
 
@@ -188,31 +193,41 @@ namespace Prisma
         private void BeginTimecodeEdit()
         {
             if (review == null || engine == null) { Notice("Abre un vídeo para usar su código de tiempo.", false); return; }
-            timecodeBox.Text = review.Timecode(CurrentFrame());
-            timecodeBox.SetBounds(time.Left, time.Top + (time.Height - timecodeBox.Height) / 2, S(122), timecodeBox.Height);
-            time.Visible = false; timecodeBox.Visible = true; timecodeBox.BringToFront();
-            timecodeBox.Focus(); timecodeBox.SelectAll();
-            Notice("Ctrl+C copia el código · escribe otro y pulsa Intro para ir · Esc cancela", false);
+            // El código actual queda de fondo, en gris: lo que se escribe (+200, -30...) empieza en blanco.
+            timecodeBox.Text = "";
+            SendMessage(timecodeBox.Handle, SetCueBanner, (IntPtr)1, review.Timecode(CurrentFrame()));
+            PlaceTimecodeBox(time.Top, time.Height);
+            time.Visible = false; timecodeFrame.Visible = true; timecodeFrame.BringToFront();
+            timecodeBox.Focus();
+            Notice("Escribe +200, -30 o un código y pulsa Intro · Esc cancela · Ctrl+Mayús+C copia el código", false);
+        }
+
+        // Coloca la cajita sobre el código de tiempo, con el texto centrado y aire a los lados.
+        private void PlaceTimecodeBox(int top, int height)
+        {
+            int boxHeight = timecodeBox.Height + S(10);
+            timecodeFrame.SetBounds(time.Left - S(6), top + (height - boxHeight) / 2, S(134), boxHeight);
+            timecodeBox.SetBounds(S(9), (boxHeight - timecodeBox.Height) / 2, timecodeFrame.Width - S(18), timecodeBox.Height);
         }
 
         private void EndTimecodeEdit()
         {
-            if (!timecodeBox.Visible) return;
-            timecodeBox.Visible = false; time.Visible = true;
+            if (!timecodeFrame.Visible) return;
+            timecodeFrame.Visible = false; time.Visible = true;
             if (timecodeBox.Focused || ActiveControl == timecodeBox) ActiveControl = null;
         }
 
         private void CommitTimecode()
         {
             long frame;
-            if (review == null || engine == null) { EndTimecodeEdit(); return; }
+            if (review == null || engine == null || timecodeBox.Text.Trim().Length == 0) { EndTimecodeEdit(); return; }
             if (!review.TryParseTimecode(timecodeBox.Text, CurrentFrame(), out frame))
             {
                 Notice("Código de tiempo no válido. Ejemplos: 00:00:03:10, 3:10, 310 o +10", true);
                 timecodeBox.SelectAll(); return;
             }
             EndTimecodeEdit();
-            PauseShuttle(); engine.Command("seek", P(frame / review.Fps), "absolute+exact"); stopped = false;
+            StopReverseShuttle(); engine.Command("seek", P(frame / review.Fps), "absolute+exact"); stopped = false;
             Notice("Ir a " + review.Timecode(frame), false);
         }
 

@@ -154,6 +154,12 @@ namespace Prisma
             shuttle.Rate = 0; shuttleClock.Reset();
             if (engine != null) { engine.Set("pause", "yes"); engine.Set("speed", "1"); }
         }
+        // Mover el cabezal (barra, código de tiempo, Mayús+flechas) no pausa: si se estaba
+        // reproduciendo, sigue. Solo se corta la marcha atrás, que avanza con búsquedas propias.
+        private void StopReverseShuttle()
+        {
+            if (shuttle.Rate < 0) PauseShuttle();
+        }
         private void StartShuttle(int direction, bool slow)
         {
             if (engine == null || engine.Flag("idle-active")) return;

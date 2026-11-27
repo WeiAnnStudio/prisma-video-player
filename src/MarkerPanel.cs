@@ -156,6 +156,14 @@ namespace Prisma
         }
         public void CancelEdit() { pending=null; SetEditing(false); list.Focus(); }
         public void CommitEdit() { if(Editing) SaveEdit(); }
+        // El cursor va directo al texto de la nota, al final, para escribir sin hacer clic.
+        // Se repite con BeginInvoke porque el editor acaba de mostrarse y Windows puede
+        // no aceptar el foco en este mismo momento.
+        private void FocusNoteText()
+        {
+            MethodInvoker place = delegate { if(!Editing) return; note.Focus(); note.SelectionStart=note.TextLength; note.SelectionLength=0; note.ScrollToCaret(); };
+            place(); if(IsHandleCreated) BeginInvoke(place);
+        }
         public void BeginEdit(ReviewMarker marker)
         {
             if(document==null || marker==null) return;
@@ -163,7 +171,7 @@ namespace Prisma
             pending=marker; editorHeading.Text=document.Markers.Contains(marker) ? "Editar nota" : "Nueva nota";
             at.Text=document.Timecode(marker.Frame); frame.Text="Fotograma "+marker.Frame;
             title.Text=marker.Name; note.Text=marker.Note; note.SelectionStart=note.TextLength; editorScroll.AutoScrollPosition=Point.Empty;
-            SetEditing(true); title.Focus(); title.SelectAll();
+            SetEditing(true); FocusNoteText();
         }
         private void SaveEdit()
         {
