@@ -200,7 +200,7 @@ extension PlayerWindowController {
             "J / K / L   Retroceder / pausar / avanzar\nRepite J o L para acelerar hasta 16×; la tecla contraria frena.\n⇧J / ⇧L   Revisión a media velocidad\nI   Resumen sobre el vídeo\n⌘I   Información completa\n" +
             "M   Añadir nota en este fotograma\nN   Mostrar notas\n⌘↩   Guardar nota en edición\n⌘T   (editando una nota) Insertar el código de tiempo actual\nEsc   Cancelar edición / salir de pantalla completa\n↑ / ↓   Volumen\n⇧⌘M   Silenciar\nInicio   Volver al principio\nS   Detener\nF   Pantalla completa\n⇧⌘R   Enviar notas a DaVinci Resolve\n\n" +
             "⌘+ / ⌘−   Acercar / alejar la imagen (también rueda del ratón o pellizco sobre el vídeo)\n⌘0   Ajustar la imagen a la ventana\n⌘1   Imagen al 100 % (píxel a píxel)\nArrastrar   Mover la imagen ampliada\n" +
-            "Clic en el código de tiempo   Copiarlo (⌘C) o escribir otro y pulsar ↩ para ir\n⌘G   Ir a un código de tiempo (00:00:03:10, 3:10, 310, +10)\n⇧⌘C   Copiar el código de tiempo\n\n" +
+            "Clic en el código de tiempo   Escribir +200, -30 u otro código y pulsar ↩ para ir\n⌘G   Ir a un código de tiempo (00:00:03:10, 3:10, 310, +10)\n⇧⌘C   Copiar el código de tiempo\n\n" +
             "Doble clic sobre el vídeo: pantalla completa.")
     }
 

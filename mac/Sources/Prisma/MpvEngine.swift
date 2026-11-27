@@ -30,8 +30,13 @@ final class MpvEngine: PlaybackEngine {
         self.handle = handle
         // Sin ajustes del usuario ni atajos de mpv: Prisma lleva sus propios controles. Sin decodificador
         // de hardware: dav1d (por software) es lo que se prueba y lo que da imágenes exactas.
-        let options = ["config": "no", "vo": "libmpv", "hwdec": "no", "keep-open": "yes", "pause": "yes",
-                       "input-default-bindings": "no", "input-vo-keyboard": "no", "osc": "no", "terminal": "no"]
+        var options = ["config": "no", "vo": "libmpv", "hwdec": "no", "keep-open": "yes", "pause": "yes",
+                       "input-default-bindings": "no", "input-vo-keyboard": "no", "input-media-keys": "no",
+                       "terminal": "no"]
+        // Ninguno de los extras de mpv escritos en Lua (estadísticas, consola, menús...): Prisma no los
+        // usa y su Lua compila código al vuelo, cosa que macOS prohíbe en una app firmada como Prisma y
+        // que la cerraba de golpe al abrir un AV1 (Prisma 0.6.0).
+        for extra in MpvEngine.luaExtras { options[extra] = "no" }
         for (name, value) in options { _ = lib.setOption(handle, name, value) }
         guard lib.initialize(handle) >= 0, createRenderContext() else { lib.destroy(handle); self.handle = nil; return nil }
         picture.onResize = { [weak self] in self?.draw() }
@@ -39,6 +44,11 @@ final class MpvEngine: PlaybackEngine {
     }
 
     deinit { shutdown() }
+
+    // Opciones de mpv que cargan sus extras en Lua. "load-osd-console" es el nombre antiguo de
+    // "load-console"; si una versión no conoce alguna, mpv la ignora.
+    static let luaExtras = ["load-scripts", "osc", "ytdl", "load-stats-overlay", "load-console", "load-osd-console",
+                            "load-auto-profiles", "load-select", "load-positioning", "load-commands", "load-context-menu"]
 
     // MARK: Imagen
 

@@ -145,7 +145,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         if compact { right = w - 16; x = 16 }
         volume.frame = NSRect(x: right - 90, y: timeRow + 8, width: 90, height: 16); right -= 96
         speaker.frame = NSRect(x: right - 20, y: timeRow + 7, width: 20, height: 18); right -= 30
-        timecodeField.frame = NSRect(x: x - 3, y: timeRow + 5, width: 106, height: 22)
+        timecodeField.frame = NSRect(x: x - TimecodeCell.sideMargin, y: timeRow + 3, width: 104 + TimecodeCell.sideMargin, height: 26)
         timeLabel.frame = NSRect(x: x + 112, y: timeRow + 7, width: max(0, right - x - 112), height: 18)
         layoutSummary()
     }
@@ -333,7 +333,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         guard engine.hasMedia else { return }
         let duration = engine.duration
         guard duration.isFinite, duration > 0 else { return }
-        pauseShuttle()
+        stopReverseShuttle()
         if let review, exact {
             let target = min(review.durationFrames - 1, Int64((fraction * Double(review.durationFrames)).rounded(.down)))
             seek(frame: target)
@@ -346,7 +346,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     }
 
     func seekRelative(_ seconds: Double) {
-        pauseShuttle()
+        stopReverseShuttle()
         let target = max(0, engine.seconds + seconds)
         engine.seek(to: CMTime(seconds: target, preferredTimescale: 600), exact: true, completion: nil)
     }
@@ -372,6 +372,14 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
         shuttle.rate = 0
         reverseTimer?.invalidate(); reverseTimer = nil
         engine.pause()
+    }
+
+    // Mover el cabezal (barra, código de tiempo, Mayús+flechas) no pausa: si se estaba
+    // reproduciendo, sigue. Solo se corta la marcha atrás, que avanza con búsquedas propias
+    // y chocaría con el salto.
+    func stopReverseShuttle() {
+        guard shuttle.rate < 0 || reverseTimer != nil else { return }
+        pauseShuttle()
     }
 
     // J / L: doubles speed up to 16×; the opposite key slows down and reverses. Shift: half speed.
@@ -538,7 +546,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     func beginTimecodeEdit() {
         guard review != nil else { notice("Abre un vídeo para usar su código de tiempo."); return }
         window?.makeFirstResponder(timecodeField)
-        notice("⌘C copia el código · escribe otro y pulsa ↩ para ir · Esc cancela")
+        notice("Escribe +200, -30 o un código y pulsa ↩ · Esc cancela · ⌘⇧C copia el código")
     }
 
     func copyTimecode() {
@@ -550,14 +558,14 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, NSMenu
     }
 
     private func commitTimecode(_ text: String) {
-        guard let review else { endTimecodeEdit(); return }
+        guard let review, !text.trimmingCharacters(in: .whitespaces).isEmpty else { endTimecodeEdit(); return }
         guard let frame = review.parseTimecode(text, current: currentFrame) else {
             notice("Código de tiempo no válido. Ejemplos: 00:00:03:10, 3:10, 310 o +10", error: true)
             timecodeField.currentEditor()?.selectAll(nil)
             return
         }
         endTimecodeEdit()
-        pauseShuttle()
+        stopReverseShuttle()
         seek(frame: frame)
         timecodeField.stringValue = review.timecode(frame)
         notice("Ir a " + review.timecode(frame))

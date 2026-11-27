@@ -191,59 +191,6 @@ final class VideoStage: NSView {
     override func smartMagnify(with event: NSEvent) { toggleFitAndActualSize(anchor: convert(event.locationInWindow, from: nil)) }
 }
 
-// The player's timecode. It reads like a label; a click makes it editable, with the code
-// selected so ⌘C copies it, and typing another code and pressing Return jumps there.
-final class TimecodeField: NSTextField, NSTextFieldDelegate {
-    var onCommit: ((String) -> Void)?
-    var onCancel: (() -> Void)?
-    var canEdit: (() -> Bool)?
-    var isTyping: Bool { currentEditor() != nil }
-
-    convenience init(code: String) {
-        self.init(string: code)
-        isBordered = false; isBezeled = false; drawsBackground = false
-        isEditable = true; isSelectable = true
-        font = Theme.mono(13); textColor = Theme.ink; backgroundColor = Theme.card
-        focusRingType = .none
-        usesSingleLineMode = true; lineBreakMode = .byClipping
-        cell?.isScrollable = true
-        delegate = self
-        toolTip = "Clic: copiar el código de tiempo o escribir otro para ir a él (⌘G)"
-    }
-
-    override func resetCursorRects() { addCursorRect(bounds, cursor: NSCursor.iBeam) }
-
-    // Un solo clic basta: entra en edición con todo el código seleccionado.
-    // Sin esto, el clic recolocaba el cursor y deshacía la selección (hacían falta varios clics).
-    override func mouseDown(with event: NSEvent) {
-        if currentEditor() == nil {
-            guard canEdit?() ?? true else { return }
-            window?.makeFirstResponder(self)
-            currentEditor()?.selectAll(nil)
-            return
-        }
-        super.mouseDown(with: event)
-    }
-
-    override func becomeFirstResponder() -> Bool {
-        guard canEdit?() ?? true else { return false }
-        let ok = super.becomeFirstResponder()
-        if ok {
-            drawsBackground = true
-            DispatchQueue.main.async { [weak self] in self?.currentEditor()?.selectAll(nil) }
-        }
-        return ok
-    }
-
-    func controlTextDidEndEditing(_ obj: Notification) { drawsBackground = false }
-
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
-        if selector == #selector(NSResponder.insertNewline(_:)) { onCommit?(stringValue); return true }
-        if selector == #selector(NSResponder.cancelOperation(_:)) { onCancel?(); return true }
-        return false
-    }
-}
-
 // Timeline with the play position and a tick for every note.
 final class SeekBar: NSView {
     var progress: Double = 0 { didSet { needsDisplay = true } }

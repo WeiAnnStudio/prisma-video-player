@@ -221,8 +221,20 @@ final class NotesPanel: FlippedView, NSTableViewDataSource, NSTableViewDelegate 
         deleteButton.isHidden = isNew
         editor.isHidden = false
         for v in [heading, subtitle, count, add, scrollView, empty, hint, cloud, resolve, importButton, exportButton] as [NSView] { v.isHidden = true }
-        window?.makeFirstResponder(noteView)
-        noteView.selectAll(nil)
+        focusNoteText()
+    }
+
+    // El cursor va directo al texto de la nota, al final, para escribir sin hacer clic.
+    // Se repite en la siguiente vuelta porque, si el panel acaba de abrirse, la ventana
+    // aún no deja enfocar el cuadro en este mismo momento.
+    private func focusNoteText() {
+        let place = { [weak self] in
+            guard let self, self.editing != nil else { return }
+            self.window?.makeFirstResponder(self.noteView)
+            self.noteView.setSelectedRange(NSRange(location: (self.noteView.string as NSString).length, length: 0))
+        }
+        place()
+        DispatchQueue.main.async(execute: place)
     }
 
     func commitEdit() {
