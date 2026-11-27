@@ -41,8 +41,9 @@ Con la imagen ampliada, arrástrala para moverla. Clic con la rueda: alterna ent
 El botón de tamaño (junto a la velocidad) muestra el valor actual y ofrece 50 %, 100 %, 200 % y 400 %.
 
 CÓDIGO DE TIEMPO
-Haz clic en el código de tiempo del reproductor: queda seleccionado para copiarlo con Ctrl+C,
-o escribe otro y pulsa Intro para ir a él (Esc cancela). Ctrl+G hace lo mismo y Ctrl+Mayús+C copia.
+Un clic en el código de tiempo del reproductor abre una cajita con el código actual en gris:
+escribe +200, -30 u otro código y pulsa Intro para ir (Esc cancela). Ctrl+G hace lo mismo
+y Ctrl+Mayús+C copia el código.
 Se aceptan, como en Premiere o DaVinci: 00:00:03:10, 3:10 (segundos:fotogramas), 310 (cifras desde
 la derecha) y +10 / -1:00 (avanzar o retroceder desde la posición actual).
 Al escribir una nota, «+ TC actual» o Ctrl+T inserta en el comentario el código de tiempo
