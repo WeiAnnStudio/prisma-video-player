@@ -6,13 +6,16 @@
 # System Settings > Privacy & Security > "Open Anyway".
 set -euo pipefail
 cd "$(dirname "$0")"
-VERSION="${PRISMA_VERSION:-0.6.0}"
+VERSION="${PRISMA_VERSION:-0.6.1}"
+# Universal (chip Apple + Intel) necesita Xcode completo; con solo las herramientas de línea de
+# comandos se puede compilar para chip Apple con PRISMA_ARQUITECTURAS=arm64.
+ARCHS=""; for a in ${PRISMA_ARQUITECTURAS:-arm64 x86_64}; do ARCHS="$ARCHS --arch $a"; done
 OUT=build
 APP="$OUT/Prisma/Prisma.app"
 
 rm -rf "$OUT"
-swift build -c release --arch arm64 --arch x86_64
-BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/Prisma"
+swift build -c release $ARCHS
+BIN="$(swift build -c release $ARCHS --show-bin-path)/Prisma"
 lipo -info "$BIN"
 
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

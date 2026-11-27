@@ -42,8 +42,9 @@ pellizco en el trackpad sobre el vídeo: acercar / alejar. Con la imagen ampliad
 desplázate con dos dedos para moverla. El botón de tamaño muestra el valor y ofrece 50 % a 400 %.
 
 CÓDIGO DE TIEMPO
-Clic en el código de tiempo del reproductor: queda seleccionado para copiarlo con ⌘C, o escribe
-otro y pulsa ↩ para ir a él. Vale 00:00:03:10, 3:10 (segundos:fotogramas), 310 o +10 / -1:00.
+Un clic en el código de tiempo del reproductor abre una cajita con el código actual en gris: escribe
++200, -30 u otro código y pulsa ↩ para ir (Esc cancela); ⇧⌘C lo copia. Vale 00:00:03:10,
+3:10 (segundos:fotogramas), 310 (cifras desde la derecha: +200 son 2 segundos) o +10 / -1:00.
 Al escribir una nota, «+ TC actual» o ⌘T inserta el código de tiempo donde está el reproductor.
 
 NOTAS DE REVISIÓN
